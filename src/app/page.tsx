@@ -1,4 +1,6 @@
+import { auth } from "@/lib/auth";
 import { DashboardLayout } from "@/components/dashboard-layout";
+import { GuestDashboard } from "@/components/guest-dashboard";
 import {
   Newspaper,
   LineChart,
@@ -41,7 +43,7 @@ const kpiCards = [
   },
 ];
 
-const modules = [
+const moduleCards = [
   {
     name: "Insights",
     description: "RSSニュースから日々のビジネスアイデアを蓄積・スコアリング",
@@ -68,9 +70,19 @@ const modules = [
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const session = await auth();
+
+  if (!session) {
+    return (
+      <DashboardLayout>
+        <GuestDashboard />
+      </DashboardLayout>
+    );
+  }
+
   return (
-    <DashboardLayout>
+    <DashboardLayout user={session.user}>
       <div className="p-6 space-y-6">
         {/* Header */}
         <div>
@@ -109,7 +121,7 @@ export default function Home() {
             Modules
           </h2>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            {modules.map((mod) => (
+            {moduleCards.map((mod) => (
               <a
                 key={mod.name}
                 href={mod.href}

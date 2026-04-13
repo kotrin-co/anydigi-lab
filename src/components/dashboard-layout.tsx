@@ -2,13 +2,23 @@
 
 import { Sidebar } from "./sidebar";
 
-export function DashboardLayout({ children }: { children: React.ReactNode }) {
+type User = {
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+} | null;
+
+export function DashboardLayout({
+  children,
+  user,
+}: {
+  children: React.ReactNode;
+  user?: User;
+}) {
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      <main className="flex-1 overflow-y-auto bg-background">
-        {children}
-      </main>
+      <Sidebar user={user} />
+      <main className="flex-1 overflow-y-auto bg-background">{children}</main>
     </div>
   );
 }
