@@ -147,7 +147,7 @@ export default async function InsightsPage() {
   const generalIdeas = activeIdeas.filter((i) => i.category === "general");
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Insights

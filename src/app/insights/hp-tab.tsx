@@ -138,7 +138,7 @@ export function HpTab({
         <h3 className="text-sm font-medium text-muted-foreground">
           訪問者数 / 閲覧数の推移
         </h3>
-        <ChartContainer config={trendConfig} className="h-[250px] w-full">
+        <ChartContainer config={trendConfig} className="h-[180px] sm:h-[250px] w-full">
           <AreaChart data={dailySummary}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
             <XAxis
@@ -212,7 +212,7 @@ export function HpTab({
               : "ページを選択"}{" "}
             — 日別PV推移
           </h3>
-          <ChartContainer config={pagePvConfig} className="h-[250px] w-full">
+          <ChartContainer config={pagePvConfig} className="h-[180px] sm:h-[250px] w-full">
             <AreaChart data={selectedPageDaily}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
               <XAxis
@@ -244,11 +244,11 @@ export function HpTab({
           </h3>
           <div className="space-y-2">
             {traffic.map((t, i) => (
-              <div key={i} className="flex items-center justify-between">
-                <span className="text-sm text-foreground">
+              <div key={i} className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between">
+                <span className="text-sm text-foreground truncate">
                   {t.source ?? "(不明)"} / {t.medium ?? "(不明)"}
                 </span>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 shrink-0">
                   <span className="text-xs text-muted-foreground">
                     訪問者 {t.totalUu}
                   </span>
@@ -308,17 +308,14 @@ export function HpTab({
                   ? Math.round((r.totalPv / totalPv) * 100)
                   : 0;
               return (
-                <div key={i} className="flex items-center justify-between">
-                  <span className="text-sm text-foreground">{r.region}</span>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-muted-foreground">
+                <div key={i} className="flex items-center justify-between gap-2">
+                  <span className="text-sm text-foreground truncate">{r.region}</span>
+                  <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                    <span className="text-xs text-muted-foreground tabular-nums">
                       {pct}%
                     </span>
                     <span className="text-xs text-muted-foreground tabular-nums">
-                      訪問者 {r.totalUu}
-                    </span>
-                    <span className="text-xs text-muted-foreground tabular-nums">
-                      閲覧 {r.totalPv}
+                      {r.totalPv}pv
                     </span>
                   </div>
                 </div>

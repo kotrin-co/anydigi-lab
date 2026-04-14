@@ -1,12 +1,7 @@
 "use client";
 
+import { useState } from "react";
 import { ExternalLink } from "lucide-react";
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
-} from "@/components/ui/tabs";
 import { HpTab } from "./hp-tab";
 
 type Idea = {
@@ -68,34 +63,41 @@ export function InsightsTabs({
   evidenceByIdea: Record<number, Evidence[]>;
   hpData: HpData;
 }) {
-  return (
-    <Tabs defaultValue="anydigi">
-      <TabsList>
-        <TabsTrigger value="anydigi">
-          AnyDigi
-          <span className="ml-1.5 rounded-full bg-indigo-500/10 px-1.5 py-0.5 text-[10px] font-medium text-indigo-500">
-            {anydigiIdeas.length}
-          </span>
-        </TabsTrigger>
-        <TabsTrigger value="general">
-          General
-          <span className="ml-1.5 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-500">
-            {generalIdeas.length}
-          </span>
-        </TabsTrigger>
-        <TabsTrigger value="articles">
-          Articles
-          <span className="ml-1.5 rounded-full bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-500">
-            {recentArticles.length}
-          </span>
-        </TabsTrigger>
-        <TabsTrigger value="hp">
-          HP
-        </TabsTrigger>
-      </TabsList>
+  const tabs = [
+    { key: "anydigi", label: "AnyDigi", count: anydigiIdeas.length, badgeColor: "bg-indigo-500/10 text-indigo-500" },
+    { key: "general", label: "General", count: generalIdeas.length, badgeColor: "bg-emerald-500/10 text-emerald-500" },
+    { key: "articles", label: "Articles", count: recentArticles.length, badgeColor: "bg-blue-500/10 text-blue-500" },
+    { key: "hp", label: "HP" },
+  ] as const;
 
-      <TabsContent value="anydigi">
-        {anydigiIdeas.length > 0 ? (
+  type TabKey = (typeof tabs)[number]["key"];
+  const [active, setActive] = useState<TabKey>("anydigi");
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActive(tab.key)}
+            className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
+              active === tab.key
+                ? "border-border bg-accent text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:bg-accent/50"
+            }`}
+          >
+            {tab.label}
+            {"count" in tab && tab.count !== undefined && (
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${"badgeColor" in tab ? tab.badgeColor : ""}`}>
+                {tab.count}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {active === "anydigi" && (
+        anydigiIdeas.length > 0 ? (
           <div className="grid gap-4">
             {anydigiIdeas.map((idea) => (
               <IdeaCard
@@ -107,11 +109,11 @@ export function InsightsTabs({
           </div>
         ) : (
           <EmptyState message="AnyDigi事業アイデアはまだありません" />
-        )}
-      </TabsContent>
+        )
+      )}
 
-      <TabsContent value="general">
-        {generalIdeas.length > 0 ? (
+      {active === "general" && (
+        generalIdeas.length > 0 ? (
           <div className="grid gap-4">
             {generalIdeas.map((idea) => (
               <IdeaCard
@@ -123,11 +125,11 @@ export function InsightsTabs({
           </div>
         ) : (
           <EmptyState message="一般事業アイデアはまだありません" />
-        )}
-      </TabsContent>
+        )
+      )}
 
-      <TabsContent value="articles">
-        {recentArticles.length > 0 ? (
+      {active === "articles" && (
+        recentArticles.length > 0 ? (
           <div className="rounded-lg border border-border bg-card divide-y divide-border">
             {recentArticles.map((article) => (
               <a
@@ -161,10 +163,10 @@ export function InsightsTabs({
           </div>
         ) : (
           <EmptyState message="記事はまだありません" />
-        )}
-      </TabsContent>
+        )
+      )}
 
-      <TabsContent value="hp">
+      {active === "hp" && (
         <HpTab
           dailySummary={hpData.dailySummary}
           topPages={hpData.topPages}
@@ -173,8 +175,8 @@ export function InsightsTabs({
           devices={hpData.devices}
           regions={hpData.regions}
         />
-      </TabsContent>
-    </Tabs>
+      )}
+    </div>
   );
 }
 

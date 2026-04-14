@@ -4,7 +4,7 @@ import { BarChart3, ArrowRight, LogIn } from "lucide-react";
 
 export function GuestDashboard() {
   return (
-    <div className="p-6 space-y-8">
+    <div className="p-4 sm:p-6 space-y-8">
       {/* Hero */}
       <div className="space-y-3">
         <div className="flex items-center gap-3">

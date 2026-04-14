@@ -11,6 +11,8 @@ import {
   LayoutDashboard,
   LogIn,
   LogOut,
+  Menu,
+  X,
 } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle";
 import { SignOutModal } from "./sign-out-modal";
@@ -38,14 +40,15 @@ type User = {
 export function Sidebar({ user }: { user?: User }) {
   const pathname = usePathname();
   const [showSignOut, setShowSignOut] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const isAuthenticated = !!user;
 
   const visibleNav = navigation.filter(
     (item) => item.public || isAuthenticated
   );
 
-  return (
-    <aside className="flex h-full w-56 flex-col border-r border-border bg-card">
+  const sidebarContent = (
+    <>
       <div className="flex h-14 items-center gap-2 border-b border-border px-4">
         <Image
           src="/anydigi-icon.png"
@@ -69,6 +72,7 @@ export function Sidebar({ user }: { user?: User }) {
             <Link
               key={item.name}
               href={item.href}
+              onClick={() => setMobileOpen(false)}
               className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
                 isActive
                   ? "bg-accent text-foreground font-medium"
@@ -110,6 +114,7 @@ export function Sidebar({ user }: { user?: User }) {
         ) : (
           <Link
             href="/api/auth/signin?callbackUrl=/"
+            onClick={() => setMobileOpen(false)}
             className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
           >
             <LogIn className="h-4 w-4" />
@@ -122,6 +127,54 @@ export function Sidebar({ user }: { user?: User }) {
         </div>
       </div>
       <SignOutModal open={showSignOut} onClose={() => setShowSignOut(false)} />
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile header */}
+      <div className="fixed top-0 left-0 right-0 z-40 flex h-12 items-center gap-3 border-b border-border bg-card px-3 lg:hidden">
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        <Image
+          src="/anydigi-icon.png"
+          alt="AnyDigi"
+          width={24}
+          height={24}
+          className="rounded-md"
+        />
+        <span className="text-sm font-semibold tracking-tight text-foreground">
+          AnyDigi Lab
+        </span>
+      </div>
+
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setMobileOpen(false)}
+          />
+          <aside className="relative flex h-full w-64 flex-col bg-card shadow-xl">
+            <button
+              onClick={() => setMobileOpen(false)}
+              className="absolute top-3 right-3 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            {sidebarContent}
+          </aside>
+        </div>
+      )}
+
+      {/* Desktop sidebar */}
+      <aside className="hidden lg:flex h-full w-56 flex-col border-r border-border bg-card">
+        {sidebarContent}
+      </aside>
+    </>
   );
 }
