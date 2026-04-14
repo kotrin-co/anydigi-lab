@@ -1,0 +1,1 @@
+ALTER TABLE "insights"."articles" ADD COLUMN "ai_category" text;

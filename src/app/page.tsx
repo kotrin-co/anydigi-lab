@@ -1,47 +1,48 @@
 import { auth } from "@/lib/auth";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { GuestDashboard } from "@/components/guest-dashboard";
+import { db } from "@/lib/db";
+import { ideas, articles, hpDailySummary } from "@/lib/schema/insights";
+import { eq, desc, count } from "drizzle-orm";
 import {
   Newspaper,
   LineChart,
   BarChart3,
-  TrendingUp,
   Lightbulb,
-  FileText,
+  Users,
+  Eye,
   Clock,
   ArrowRight,
 } from "lucide-react";
 
-const kpiCards = [
-  {
-    title: "Ideas Tracked",
-    value: "—",
-    change: "insights",
-    icon: Lightbulb,
-    color: "text-violet-500",
-  },
-  {
-    title: "Watchlist Stocks",
-    value: "—",
-    change: "trade",
-    icon: TrendingUp,
-    color: "text-emerald-500",
-  },
-  {
-    title: "Reports Published",
-    value: "—",
-    change: "needradar",
-    icon: FileText,
-    color: "text-blue-500",
-  },
-  {
-    title: "Last Batch Run",
-    value: "—",
-    change: "pending",
-    icon: Clock,
-    color: "text-amber-500",
-  },
-];
+async function getKpiData() {
+  const [ideaCount, articleLatest, hpLatest] = await Promise.all([
+    db.select({ count: count() }).from(ideas).where(eq(ideas.status, "active")),
+    db.select({ publishedAt: articles.publishedAt }).from(articles).orderBy(desc(articles.publishedAt)).limit(1),
+    db.select({
+      date: hpDailySummary.date,
+      uniqueUsers: hpDailySummary.uniqueUsers,
+      pageviews: hpDailySummary.pageviews,
+    }).from(hpDailySummary).orderBy(desc(hpDailySummary.date)).limit(1),
+  ]);
+
+  const lastRun = articleLatest[0]?.publishedAt;
+  const hp = hpLatest[0];
+
+  return {
+    ideasTracked: ideaCount[0]?.count ?? 0,
+    lastBatchRun: lastRun
+      ? new Date(lastRun).toLocaleDateString("ja-JP", {
+          month: "2-digit",
+          day: "2-digit",
+          timeZone: "Asia/Tokyo",
+        })
+      : "—",
+    hpUu: hp?.uniqueUsers ?? 0,
+    hpPv: hp?.pageviews ?? 0,
+    hpDate: hp?.date ?? null,
+  };
+}
 
 const moduleCards = [
   {
@@ -80,6 +81,43 @@ export default async function Home() {
       </DashboardLayout>
     );
   }
+
+  const kpi = await getKpiData();
+
+  const hpSub = kpi.hpDate
+    ? `HP ${kpi.hpDate.slice(5).replace("-", "/")}`
+    : "hp";
+
+  const kpiCards = [
+    {
+      title: "Ideas Tracked",
+      value: String(kpi.ideasTracked),
+      change: "insights",
+      icon: Lightbulb,
+      color: "text-violet-500",
+    },
+    {
+      title: "HP 訪問者数",
+      value: String(kpi.hpUu),
+      change: hpSub,
+      icon: Users,
+      color: "text-emerald-500",
+    },
+    {
+      title: "HP 閲覧数",
+      value: String(kpi.hpPv),
+      change: hpSub,
+      icon: Eye,
+      color: "text-blue-500",
+    },
+    {
+      title: "Last Batch Run",
+      value: kpi.lastBatchRun,
+      change: "insights",
+      icon: Clock,
+      color: "text-amber-500",
+    },
+  ];
 
   return (
     <DashboardLayout user={session.user}>

@@ -1,0 +1,1 @@
+ALTER TABLE "insights"."ideas" ADD COLUMN "category" text DEFAULT 'general' NOT NULL;

@@ -1,0 +1,1 @@
+ALTER TABLE "insights"."articles" DROP COLUMN "ai_category";
