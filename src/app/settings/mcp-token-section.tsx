@@ -12,7 +12,7 @@ const CLIENT_TEMPLATES = [
       JSON.stringify(
         {
           "anydigi-lab": {
-            type: "streamable-http",
+            type: "http",
             url,
             headers: { Authorization: `Bearer ${token}` },
           },
@@ -29,7 +29,7 @@ const CLIENT_TEMPLATES = [
         {
           mcpServers: {
             "anydigi-lab": {
-              type: "streamable-http",
+              type: "http",
               url,
               headers: { Authorization: `Bearer ${token}` },
             },
@@ -48,7 +48,7 @@ const CLIENT_TEMPLATES = [
           mcp: {
             servers: {
               "anydigi-lab": {
-                type: "streamable-http",
+                type: "http",
                 url,
                 headers: { Authorization: `Bearer ${token}` },
               },
