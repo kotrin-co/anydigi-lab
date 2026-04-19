@@ -16,6 +16,9 @@ export function isPublicPath(pathname: string): boolean {
   // /api/health は公開
   if (pathname === "/api/health") return true;
 
+  // /api/mcp は独自JWT認証のため公開（proxy層では通す）
+  if (pathname === "/api/mcp") return true;
+
   // モジュールパスの公開判定
   for (const [name, config] of Object.entries(modules)) {
     if (pathname.startsWith(`/${name}`)) {

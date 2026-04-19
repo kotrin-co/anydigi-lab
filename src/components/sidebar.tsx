@@ -10,6 +10,7 @@ import {
   Newspaper,
   LayoutDashboard,
   Wallet,
+  Settings,
   LogIn,
   LogOut,
   Menu,
@@ -31,6 +32,7 @@ const navigation: NavItem[] = [
   { name: "Trade", href: "/trade", icon: LineChart, public: false },
   { name: "Portfolio", href: "/portfolio", icon: Wallet, public: false },
   { name: "NeedRadar", href: "/needradar", icon: BarChart3, public: true },
+  { name: "Settings", href: "/settings", icon: Settings, public: false },
 ];
 
 type User = {

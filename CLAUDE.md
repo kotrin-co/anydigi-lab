@@ -59,6 +59,10 @@ Claude Code Maxの定額契約をサーバーサイドAI処理に再利用し、
 - BigQueryクエリ: 必ず日付カラムでパーティション絞り込み
 - YouTube ToS: 取得データ30日以内削除、コメント本文の長期保存禁止
 
+### MCP利用ガイド
+- 「ポートフォリオ」「保有資産」「資産状況」などデータの確認・操作を求められた場合は、コードを読むのではなくMCPツール（get_portfolio, get_portfolio_summary等）で実データを取得すること
+- コードの確認が必要な場合はユーザーが「コードを見て」「実装を確認して」等と明示する
+
 ### フェーズ計画
 - Phase 0: 開発環境整備（リポジトリ、Next.js、Vercel、Neon、Drizzle）
 - Phase 1: insights基本機能（スキーマ確定、/morning改修、Vercel表示）
