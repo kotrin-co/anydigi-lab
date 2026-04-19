@@ -1,18 +1,20 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
-
-const ALLOWED_EMAILS = [
-  // ログインを許可するGoogleアカウントのメールアドレスをここに追加
-  "kentaro523@gmail.com",
-];
+import { db } from "@/lib/db";
+import { profiles } from "@/lib/schema/users";
+import { eq } from "drizzle-orm";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [Google],
   callbacks: {
-    signIn({ user }) {
-      // ALLOWED_EMAILS が空の場合は全員許可（開発用）
-      if (ALLOWED_EMAILS.length === 0) return true;
-      return ALLOWED_EMAILS.includes(user.email ?? "");
+    async signIn({ user }) {
+      if (!user.email) return false;
+      const [found] = await db
+        .select({ id: profiles.id })
+        .from(profiles)
+        .where(eq(profiles.email, user.email))
+        .limit(1);
+      return !!found;
     },
   },
 });

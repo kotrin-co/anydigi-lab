@@ -9,6 +9,7 @@ import {
   LineChart,
   Newspaper,
   LayoutDashboard,
+  Wallet,
   LogIn,
   LogOut,
   Menu,
@@ -28,6 +29,7 @@ const navigation: NavItem[] = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard, public: true },
   { name: "Insights", href: "/insights", icon: Newspaper, public: false },
   { name: "Trade", href: "/trade", icon: LineChart, public: false },
+  { name: "Portfolio", href: "/portfolio", icon: Wallet, public: false },
   { name: "NeedRadar", href: "/needradar", icon: BarChart3, public: true },
 ];
 

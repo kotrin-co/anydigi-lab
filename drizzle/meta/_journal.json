@@ -43,6 +43,20 @@
       "when": 1776125576553,
       "tag": "0005_illegal_thunderbolts",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1776431706412,
+      "tag": "0006_mean_gideon",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1776465816023,
+      "tag": "0007_breezy_winter_soldier",
+      "breakpoints": true
     }
   ]
 }

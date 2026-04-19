@@ -1,0 +1,1316 @@
+{
+  "id": "f2ca1105-5e1a-4267-91f4-abf282b54106",
+  "prevId": "4706b19f-bb1b-43c9-aee1-a04dd16459e5",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "insights.articles": {
+      "name": "articles",
+      "schema": "insights",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_name": {
+          "name": "source_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_category": {
+          "name": "source_category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "published_at": {
+          "name": "published_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "insights.hp_daily_summary": {
+      "name": "hp_daily_summary",
+      "schema": "insights",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "date": {
+          "name": "date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unique_users": {
+          "name": "unique_users",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pageviews": {
+          "name": "pageviews",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "data_source": {
+          "name": "data_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "hp_daily_summary_date_idx": {
+          "name": "hp_daily_summary_date_idx",
+          "columns": [
+            {
+              "expression": "date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "hp_daily_summary_date_unique": {
+          "name": "hp_daily_summary_date_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "date"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "insights.hp_devices": {
+      "name": "hp_devices",
+      "schema": "insights",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "date": {
+          "name": "date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "device_type": {
+          "name": "device_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unique_users": {
+          "name": "unique_users",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pageviews": {
+          "name": "pageviews",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "hp_devices_date_idx": {
+          "name": "hp_devices_date_idx",
+          "columns": [
+            {
+              "expression": "date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "insights.hp_pages": {
+      "name": "hp_pages",
+      "schema": "insights",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "date": {
+          "name": "date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "page_title": {
+          "name": "page_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "page_url": {
+          "name": "page_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pageviews": {
+          "name": "pageviews",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "hp_pages_date_idx": {
+          "name": "hp_pages_date_idx",
+          "columns": [
+            {
+              "expression": "date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "insights.hp_regions": {
+      "name": "hp_regions",
+      "schema": "insights",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "date": {
+          "name": "date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "region": {
+          "name": "region",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unique_users": {
+          "name": "unique_users",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pageviews": {
+          "name": "pageviews",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "hp_regions_date_idx": {
+          "name": "hp_regions_date_idx",
+          "columns": [
+            {
+              "expression": "date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "insights.hp_traffic": {
+      "name": "hp_traffic",
+      "schema": "insights",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "date": {
+          "name": "date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "medium": {
+          "name": "medium",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "unique_users": {
+          "name": "unique_users",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pageviews": {
+          "name": "pageviews",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "hp_traffic_date_idx": {
+          "name": "hp_traffic_date_idx",
+          "columns": [
+            {
+              "expression": "date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "insights.idea_evidence": {
+      "name": "idea_evidence",
+      "schema": "insights",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "idea_id": {
+          "name": "idea_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "article_id": {
+          "name": "article_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "relevance_note": {
+          "name": "relevance_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idea_evidence_idea_idx": {
+          "name": "idea_evidence_idea_idx",
+          "columns": [
+            {
+              "expression": "idea_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idea_evidence_article_idx": {
+          "name": "idea_evidence_article_idx",
+          "columns": [
+            {
+              "expression": "article_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "idea_evidence_idea_id_ideas_id_fk": {
+          "name": "idea_evidence_idea_id_ideas_id_fk",
+          "tableFrom": "idea_evidence",
+          "tableTo": "ideas",
+          "schemaTo": "insights",
+          "columnsFrom": [
+            "idea_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "idea_evidence_article_id_articles_id_fk": {
+          "name": "idea_evidence_article_id_articles_id_fk",
+          "tableFrom": "idea_evidence",
+          "tableTo": "articles",
+          "schemaTo": "insights",
+          "columnsFrom": [
+            "article_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "insights.idea_scores": {
+      "name": "idea_scores",
+      "schema": "insights",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "idea_id": {
+          "name": "idea_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "market": {
+          "name": "market",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fit": {
+          "name": "fit",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "timing": {
+          "name": "timing",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evidence": {
+          "name": "evidence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scored_at": {
+          "name": "scored_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idea_scores_idea_idx": {
+          "name": "idea_scores_idea_idx",
+          "columns": [
+            {
+              "expression": "idea_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idea_scores_scored_at_idx": {
+          "name": "idea_scores_scored_at_idx",
+          "columns": [
+            {
+              "expression": "scored_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "idea_scores_idea_id_ideas_id_fk": {
+          "name": "idea_scores_idea_id_ideas_id_fk",
+          "tableFrom": "idea_scores",
+          "tableTo": "ideas",
+          "schemaTo": "insights",
+          "columnsFrom": [
+            "idea_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "insights.ideas": {
+      "name": "ideas",
+      "schema": "insights",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "summary": {
+          "name": "summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'general'"
+        },
+        "embedding": {
+          "name": "embedding",
+          "type": "vector(1536)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "ideas_embedding_idx": {
+          "name": "ideas_embedding_idx",
+          "columns": [
+            {
+              "expression": "embedding",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "vector_cosine_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "hnsw",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "trade.financial_data": {
+      "name": "financial_data",
+      "schema": "trade",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fiscal_year": {
+          "name": "fiscal_year",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revenue": {
+          "name": "revenue",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "operating_profit": {
+          "name": "operating_profit",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "eps": {
+          "name": "eps",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "operating_margin": {
+          "name": "operating_margin",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "equity_ratio": {
+          "name": "equity_ratio",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "operating_cf": {
+          "name": "operating_cf",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cash_equivalents": {
+          "name": "cash_equivalents",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dividend_per_share": {
+          "name": "dividend_per_share",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "payout_ratio": {
+          "name": "payout_ratio",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "financial_data_batch_code_idx": {
+          "name": "financial_data_batch_code_idx",
+          "columns": [
+            {
+              "expression": "batch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "financial_data_batch_id_screening_batches_id_fk": {
+          "name": "financial_data_batch_id_screening_batches_id_fk",
+          "tableFrom": "financial_data",
+          "tableTo": "screening_batches",
+          "schemaTo": "trade",
+          "columnsFrom": [
+            "batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "financial_data_batch_code_year_uniq": {
+          "name": "financial_data_batch_code_year_uniq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "batch_id",
+            "code",
+            "fiscal_year"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "trade.portfolio_summaries": {
+      "name": "portfolio_summaries",
+      "schema": "trade",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tier": {
+          "name": "tier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sector_bias": {
+          "name": "sector_bias",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recommendation": {
+          "name": "recommendation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "core_candidates": {
+          "name": "core_candidates",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'[]'::jsonb"
+        },
+        "satellite_candidates": {
+          "name": "satellite_candidates",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'[]'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "portfolio_summaries_batch_id_screening_batches_id_fk": {
+          "name": "portfolio_summaries_batch_id_screening_batches_id_fk",
+          "tableFrom": "portfolio_summaries",
+          "tableTo": "screening_batches",
+          "schemaTo": "trade",
+          "columnsFrom": [
+            "batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "trade.screening_batches": {
+      "name": "screening_batches",
+      "schema": "trade",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "genre": {
+          "name": "genre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "generated_at": {
+          "name": "generated_at",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_count": {
+          "name": "total_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "max_score": {
+          "name": "max_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "trade.stocks": {
+      "name": "stocks",
+      "schema": "trade",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "market": {
+          "name": "market",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "industry": {
+          "name": "industry",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "price": {
+          "name": "price",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "yield_pct": {
+          "name": "yield_pct",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "per": {
+          "name": "per",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pbr": {
+          "name": "pbr",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "roe": {
+          "name": "roe",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "market_cap_million": {
+          "name": "market_cap_million",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "segment": {
+          "name": "segment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rank": {
+          "name": "rank",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_score": {
+          "name": "total_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "max_score": {
+          "name": "max_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "industry_score": {
+          "name": "industry_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "industry_category": {
+          "name": "industry_category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "disqualified": {
+          "name": "disqualified",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "disqualified_reason": {
+          "name": "disqualified_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "special_dividend_suspected": {
+          "name": "special_dividend_suspected",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "normal_yield_pct": {
+          "name": "normal_yield_pct",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "loss_years": {
+          "name": "loss_years",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dividend_history_years": {
+          "name": "dividend_history_years",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "financial_score": {
+          "name": "financial_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "valuation_score": {
+          "name": "valuation_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "industry_score_100": {
+          "name": "industry_score_100",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "composite_score": {
+          "name": "composite_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "theme_adjustment": {
+          "name": "theme_adjustment",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tier": {
+          "name": "tier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "business": {
+          "name": "business",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tailwinds": {
+          "name": "tailwinds",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'[]'::jsonb"
+        },
+        "headwinds": {
+          "name": "headwinds",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'[]'::jsonb"
+        },
+        "growth_comment": {
+          "name": "growth_comment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dividend_sustainability": {
+          "name": "dividend_sustainability",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recommended_position": {
+          "name": "recommended_position",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "watch_points": {
+          "name": "watch_points",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'[]'::jsonb"
+        },
+        "score_revenue_trend": {
+          "name": "score_revenue_trend",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "score_eps_trend": {
+          "name": "score_eps_trend",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "score_operating_margin": {
+          "name": "score_operating_margin",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "score_equity_ratio": {
+          "name": "score_equity_ratio",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "score_operating_cf": {
+          "name": "score_operating_cf",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "score_cash_trend": {
+          "name": "score_cash_trend",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "score_dividend_trend": {
+          "name": "score_dividend_trend",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "score_payout_ratio": {
+          "name": "score_payout_ratio",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "financial_score_raw": {
+          "name": "financial_score_raw",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "stocks_batch_idx": {
+          "name": "stocks_batch_idx",
+          "columns": [
+            {
+              "expression": "batch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "stocks_code_idx": {
+          "name": "stocks_code_idx",
+          "columns": [
+            {
+              "expression": "code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "stocks_total_score_idx": {
+          "name": "stocks_total_score_idx",
+          "columns": [
+            {
+              "expression": "total_score",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "stocks_batch_id_screening_batches_id_fk": {
+          "name": "stocks_batch_id_screening_batches_id_fk",
+          "tableFrom": "stocks",
+          "tableTo": "screening_batches",
+          "schemaTo": "trade",
+          "columnsFrom": [
+            "batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "stocks_batch_code_uniq": {
+          "name": "stocks_batch_code_uniq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "batch_id",
+            "code"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {
+    "insights": "insights",
+    "trade": "trade"
+  },
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
