@@ -14,6 +14,8 @@ import {
 } from "../repositories/bigquery";
 import { VIDEO_CATEGORIES } from "../constants/youtube";
 
+const REGIONS = ["JP", "US", "KR"];
+
 export class PopularVideosService {
   private readonly videoService: VideoService;
   private readonly channelService: ChannelService;
@@ -21,7 +23,6 @@ export class PopularVideosService {
   private readonly commentService: CommentService;
   private readonly popularVideoRepository = new PopularVideoRepository();
   private readonly videoCommentRepository = new VideoCommentRepository();
-  private readonly regionCode = "JP";
 
   constructor() {
     const client = new YoutubeClient();
@@ -32,51 +33,53 @@ export class PopularVideosService {
   }
 
   async execute() {
-    try {
-      // 最新（全カテゴリ）
-      const latestVideos = await this.videoService.fetchPopularVideos(
-        this.regionCode,
-      );
+    for (const region of REGIONS) {
+      try {
+        // 最新（全カテゴリ）
+        const latestVideos = await this.videoService.fetchPopularVideos(region);
 
-      await this.processCategoryVideos("最新", latestVideos);
+        await this.processCategoryVideos(region, "最新", latestVideos);
 
-      // カテゴリ別
-      const categories = await this.videoCategoryService.fetchVideoCategories(
-        this.regionCode,
-      );
+        // カテゴリ別
+        const categories =
+          await this.videoCategoryService.fetchVideoCategories(region);
 
-      for (const category of categories) {
-        const categoryId = category.id;
-        if (!categoryId) {
-          logger.warn("Category without ID found, skipping", { category });
-          continue;
+        for (const category of categories) {
+          const categoryId = category.id;
+          if (!categoryId) {
+            logger.warn("Category without ID found, skipping", { category });
+            continue;
+          }
+
+          const categoryTitle =
+            category.snippet?.title ??
+            VIDEO_CATEGORIES[categoryId] ??
+            "Unknown";
+
+          try {
+            const videos = await this.videoService.fetchPopularVideos(
+              region,
+              categoryId,
+            );
+
+            await this.processCategoryVideos(region, categoryTitle, videos);
+          } catch (error) {
+            logger.error(
+              `Error fetching videos for category ${categoryTitle}, skipping`,
+              { error },
+            );
+            continue;
+          }
         }
-
-        const categoryTitle =
-          category.snippet?.title ?? VIDEO_CATEGORIES[categoryId] ?? "Unknown";
-
-        try {
-          const videos = await this.videoService.fetchPopularVideos(
-            this.regionCode,
-            categoryId,
-          );
-
-          await this.processCategoryVideos(categoryTitle, videos);
-        } catch (error) {
-          logger.error(
-            `Error fetching videos for category ${categoryTitle}, skipping`,
-            { error },
-          );
-          continue;
-        }
+      } catch (error) {
+        logger.error("Error executing save-popular-videos", { error });
+        throw error;
       }
-    } catch (error) {
-      logger.error("Error executing save-popular-videos", { error });
-      throw error;
     }
   }
 
   private async processCategoryVideos(
+    region: string,
     categoryTitle: string,
     videos: youtube_v3.Schema$Video[],
   ) {
@@ -103,7 +106,7 @@ export class PopularVideosService {
         );
 
         await this.popularVideoRepository.saveVideos(
-          this.regionCode,
+          region,
           categoryTitle,
           chunk,
           channelMap,

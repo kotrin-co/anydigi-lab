@@ -1,6 +1,6 @@
 ---
 name: hp
-description: AnyDigi HPの前日アクセス分析（GA4 BigQuery → Neon蓄積 → Slack投稿）
+description: AnyDigi HPの前日アクセス分析（GA4 BigQuery → Neon蓄積）
 ---
 
 AnyDigi HP（anydigi.co.jp）の前日分アクセスデータをGA4 BigQueryエクスポートから分析し、Neonに蓄積してレポートを生成します。
@@ -107,7 +107,7 @@ npx tsx -e '
 import "dotenv/config";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { hpDailySummary, hpPages, hpTraffic, hpDevices, hpRegions } from "./src/lib/schema/insights";
+import { hpDailySummary, hpPages, hpTraffic, hpDevices, hpRegions } from "@anydigi-lab/database/schema/insights";
 
 const client = neon(process.env.DATABASE_URL);
 const db = drizzle(client);
@@ -140,58 +140,11 @@ main();
 - `hp_pages`, `hp_traffic`, `hp_devices`, `hp_regions` は date に UNIQUE 制約がないため、同日データが既にある場合は先に削除してから挿入する
 - 実際の値は Step 3 のクエリ結果を使うこと
 
-## Step 5: Slack に投稿
-
-レポート全文を Slack Webhook で投稿する。
-
-**Webhook URL**: `.env` の `SLACK_WEBHOOK_URL` を使用。
-
-```bash
-curl -s -X POST -H 'Content-type: application/json' \
-  --data '{"text": "（レポート全文）"}' \
-  "$(grep SLACK_WEBHOOK_URL .env | cut -d= -f2-)"
-```
-
-レポートフォーマット（Slack mrkdwn）:
-
-```
-*HP アクセスレポート YYYY-MM-DD（曜日）*
-
-*サマリー*
-• UU: X
-• PV: X
-• データソース: events_XXXXXXXX
-
-*ページ別PV*
-• ページ名 — X PV
-• ...
-
-*流入元*
-• source / medium — UU X, PV X
-• ...
-
-*デバイス*
-• desktop — UU X, PV X
-• ...
-
-*地域別*
-• Tokyo — UU X, PV X
-• Aichi — UU X, PV X
-• ...
-
-*所感*
-（データから読み取れる特徴を簡潔に）
-```
-
-- テーブルはSlackで崩れるため箇条書き形式にすること
-- `SLACK_WEBHOOK_URL` が未設定の場合はスキップ
-
-## Step 6: 完了表示
+## Step 5: 完了表示
 
 ```
 ## HP分析完了（YYYY-MM-DD）
 
 - UU: X / PV: X
 - Neon書き込み: 完了
-- Slack投稿: 完了 / スキップ
 ```

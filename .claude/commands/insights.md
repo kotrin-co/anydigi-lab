@@ -159,7 +159,7 @@ Step 3 の結果を Neon に書き込む。
 
 ## Step 7: HP アクセス分析
 
-`.claude/commands/hp.md` の手順に従い、前日分のHPアクセスデータを分析・Neon蓄積・Slack投稿する。
+`.claude/commands/hp.md` の手順に従い、前日分のHPアクセスデータを分析・Neon蓄積する。
 
 ## Step 8: X投稿の生成
 

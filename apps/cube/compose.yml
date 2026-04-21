@@ -1,0 +1,27 @@
+services:
+  cube:
+    image: cubejs/cube:latest
+    ports:
+      - "4000:4000"
+      - "15432:15432"
+    env_file: .env
+    environment:
+      CUBEJS_DB_TYPE: postgres
+      CUBEJS_DB_HOST: ${NEON_HOST}
+      CUBEJS_DB_PORT: 5432
+      CUBEJS_DB_NAME: ${NEON_DATABASE}
+      CUBEJS_DB_USER: ${NEON_USER}
+      CUBEJS_DB_PASS: ${NEON_PASSWORD}
+      CUBEJS_DB_SSL: "true"
+      CUBEJS_DS_BIGQUERY_DB_TYPE: bigquery
+      CUBEJS_DS_BIGQUERY_DB_BQ_PROJECT_ID: sns-query
+      CUBEJS_DS_BIGQUERY_DB_BQ_LOCATION: asia-northeast1
+      CUBEJS_DS_BIGQUERY_DB_BQ_KEY_FILE: /cube/conf/bq-key.json
+      CUBEJS_DEV_MODE: "true"
+      CUBEJS_API_SECRET: ${CUBEJS_API_SECRET}
+      CUBEJS_SCHEMA_PATH: model
+      CUBEJS_DATASOURCES: default,bigquery
+      CUBEJS_PG_SQL_PORT: "15432"
+    volumes:
+      - ./model:/cube/conf/model
+      - ./bq-key.json:/cube/conf/bq-key.json:ro

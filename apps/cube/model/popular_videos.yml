@@ -1,0 +1,58 @@
+cubes:
+  - name: popular_videos
+    sql: "SELECT * FROM `sns-query.sns_metrics.popular_videos` WHERE snapshot_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)"
+    data_source: bigquery
+
+    dimensions:
+      - name: video_id
+        sql: video_id
+        type: string
+        primary_key: true
+
+      - name: snapshot_date
+        sql: "TIMESTAMP(snapshot_date)"
+        type: time
+
+      - name: region_code
+        sql: region_code
+        type: string
+
+      - name: category
+        sql: basic_info.category
+        type: string
+
+      - name: video_title
+        sql: basic_info.title
+        type: string
+
+      - name: channel_name
+        sql: channel.title
+        type: string
+
+      - name: channel_region
+        sql: channel.region
+        type: string
+
+      - name: published_at
+        sql: "basic_info.published_at"
+        type: time
+
+    measures:
+      - name: count
+        type: count
+
+      - name: total_views
+        sql: statistics.view_count
+        type: sum
+
+      - name: total_likes
+        sql: statistics.like_count
+        type: sum
+
+      - name: total_comments
+        sql: statistics.comment_count
+        type: sum
+
+      - name: avg_views
+        sql: statistics.view_count
+        type: avg

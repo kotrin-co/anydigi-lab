@@ -40,9 +40,14 @@ yarn-error.log*
 # mcp config (contains credentials)
 .mcp.json
 
+# GCP service account keys
+**/bq-key.json
+
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.claude/outputs
