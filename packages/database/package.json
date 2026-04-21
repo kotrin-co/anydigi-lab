@@ -1,0 +1,21 @@
+{
+  "name": "@anydigi-lab/database",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./db": "./db.ts",
+    "./embedding": "./embedding.ts",
+    "./schema/insights": "./schema/insights.ts",
+    "./schema/trade": "./schema/trade.ts",
+    "./schema/users": "./schema/users.ts"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.2",
+    "drizzle-orm": "^0.45.2",
+    "openai": "^6.34.0"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.10"
+  }
+}

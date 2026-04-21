@@ -17,11 +17,11 @@ import "dotenv/config";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { eq, inArray } from "drizzle-orm";
-import { stockProfiles, stockFinancials } from "../src/lib/schema/trade";
+import { stockProfiles, stockFinancials } from "@anydigi-lab/database/schema/trade";
 import {
   fetchAllDividendRanking,
   fetchIRBankData,
-} from "../src/lib/trade/scraper";
+} from "../apps/web/src/lib/trade/scraper";
 
 const sql = neon(process.env.DATABASE_URL!);
 const db = drizzle(sql);

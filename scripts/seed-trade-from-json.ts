@@ -19,7 +19,7 @@ import {
   screeningBatches,
   stocks,
   portfolioSummaries,
-} from "../src/lib/schema/trade";
+} from "@anydigi-lab/database/schema/trade";
 
 const sql = neon(process.env.DATABASE_URL!);
 const db = drizzle(sql);

@@ -1,5 +1,5 @@
-import { db } from "../src/lib/db";
-import { holdings } from "../src/lib/schema/users";
+import { db } from "@anydigi-lab/database/db";
+import { holdings } from "@anydigi-lab/database/schema/users";
 import { eq } from "drizzle-orm";
 import { readFileSync } from "fs";
 import { resolve } from "path";

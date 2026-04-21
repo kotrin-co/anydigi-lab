@@ -17,15 +17,15 @@ import {
   stocks,
   stockProfiles,
   stockFinancials,
-} from "../src/lib/schema/trade";
-import { fetchAllDividendRanking } from "../src/lib/trade/scraper";
-import { calcFinancialScores } from "../src/lib/trade/financial-scoring";
-import type { YearlyData } from "../src/lib/trade/financial-scoring";
+} from "@anydigi-lab/database/schema/trade";
+import { fetchAllDividendRanking } from "../apps/web/src/lib/trade/scraper";
+import { calcFinancialScores } from "../apps/web/src/lib/trade/financial-scoring";
+import type { YearlyData } from "../apps/web/src/lib/trade/financial-scoring";
 import {
   calcValuationScore,
   calcIndustryScore,
   calcCompositeScore,
-} from "../src/lib/trade/scoring";
+} from "../apps/web/src/lib/trade/scoring";
 
 const sql = neon(process.env.DATABASE_URL!);
 const db = drizzle(sql);

@@ -2,7 +2,7 @@ import "dotenv/config";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { eq } from "drizzle-orm";
-import { hpDailySummary, hpPages, hpTraffic, hpDevices, hpRegions } from "../src/lib/schema/insights";
+import { hpDailySummary, hpPages, hpTraffic, hpDevices, hpRegions } from "@anydigi-lab/database/schema/insights";
 
 const client = neon(process.env.DATABASE_URL!);
 const db = drizzle(client);

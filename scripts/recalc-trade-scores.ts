@@ -11,8 +11,8 @@ import "dotenv/config";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { eq } from "drizzle-orm";
-import { stocks, screeningBatches } from "../src/lib/schema/trade";
-import { calcAllScores } from "../src/lib/trade/scoring";
+import { stocks, screeningBatches } from "@anydigi-lab/database/schema/trade";
+import { calcAllScores } from "../apps/web/src/lib/trade/scoring";
 
 const sql = neon(process.env.DATABASE_URL!);
 const db = drizzle(sql);

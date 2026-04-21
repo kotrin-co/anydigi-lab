@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { articles, ideas, ideaEvidence, ideaScores } from "../src/lib/schema/insights";
+import { articles, ideas, ideaEvidence, ideaScores } from "@anydigi-lab/database/schema/insights";
 
 const sql = neon(process.env.DATABASE_URL!);
 const db = drizzle(sql);

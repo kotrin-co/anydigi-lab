@@ -2,7 +2,7 @@ import "dotenv/config";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { and, eq, inArray, asc } from "drizzle-orm";
-import { stocks, stockFinancials } from "../src/lib/schema/trade";
+import { stocks, stockFinancials } from "@anydigi-lab/database/schema/trade";
 
 const sql = neon(process.env.DATABASE_URL!);
 const db = drizzle(sql);
