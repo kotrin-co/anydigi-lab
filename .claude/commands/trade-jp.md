@@ -190,6 +190,20 @@ cd apps/web && pnpm dev
 
 http://localhost:3000/trade/jp-high-dividend を開いて Tier S/A の詳細カードが期待通り埋まっているか確認する。
 
+### Step 7: 成功時のアーカイブ
+
+動作確認まで成功した場合のみ、本実行で `scripts/` 配下に生成したスクリプト（`scripts/save-portfolio-summary-YYYY-MM-DD.ts` / `scripts/save-tier-reports-YYYY-MM-DD.ts` など）を `scripts/archives/YYYY-MM/`（YYYY-MM は実行日の年月）へ移動する。
+
+```bash
+mkdir -p scripts/archives/YYYY-MM
+mv scripts/save-portfolio-summary-YYYY-MM-DD.ts scripts/archives/YYYY-MM/
+mv scripts/save-tier-reports-YYYY-MM-DD.ts scripts/archives/YYYY-MM/
+```
+
+- 失敗・中断した場合は移動しない（再実行で内容を確認・修正できるよう残す）
+- 本実行で生成した日付付きスクリプトはすべて移動する
+- ディレクトリが既にあれば `mkdir -p` は no-op
+
 ## 注意事項
 
 - スコアリング (Step 1〜2) は決定論的なので、Claude が値を捏造しないこと。`screen-jp-dividend.ts` の出力に従う

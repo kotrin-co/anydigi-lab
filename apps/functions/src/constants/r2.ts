@@ -22,6 +22,6 @@ export const SCHEMAS = {
   },
   REDDIT_POSTS: {
     prefix: "reddit/posts",
-    retentionDays: null,
+    retentionDays: 2,
   },
 } as const;

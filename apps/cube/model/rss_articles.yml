@@ -1,0 +1,67 @@
+cubes:
+  - name: rss_articles
+    data_source: duckdb
+    sql: >
+      SELECT * FROM (
+        SELECT
+          *,
+          ROW_NUMBER() OVER (PARTITION BY id ORDER BY dt DESC, created_at DESC) AS rn
+        FROM read_parquet(
+          's3://anydigi-lab/rss/articles/dt=*/*.parquet',
+          hive_partitioning = true
+        )
+      ) WHERE rn = 1
+
+    dimensions:
+      - name: id
+        sql: id
+        type: string
+        primary_key: true
+
+      - name: url
+        sql: url
+        type: string
+
+      - name: title
+        sql: title
+        type: string
+
+      - name: content
+        sql: content
+        type: string
+
+      - name: published_at
+        sql: "CAST(published_at AS TIMESTAMP)"
+        type: time
+
+      - name: source_name
+        sql: source_name
+        type: string
+
+      - name: source_url
+        sql: source_url
+        type: string
+
+      - name: source_country
+        sql: source_country
+        type: string
+
+      - name: source_category
+        sql: source_category
+        type: string
+
+      - name: language
+        sql: language
+        type: string
+
+      - name: created_at
+        sql: "CAST(created_at AS TIMESTAMP)"
+        type: time
+
+      - name: dt
+        sql: dt
+        type: string
+
+    measures:
+      - name: count
+        type: count

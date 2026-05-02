@@ -1,6 +1,6 @@
 ---
 name: x-post
-description: insightsの分析結果からX投稿を生成し、ファイル出力する
+description: insightsの分析結果（R2/Cube経由）からX投稿を生成し、ファイル出力する
 ---
 
 insights の分析結果をもとに、AnyDigi代表（中川さん）のX投稿を生成します。
@@ -12,22 +12,37 @@ insights の分析結果をもとに、AnyDigi代表（中川さん）のX投稿
 
 **単体で実行された場合のみ、以下を実行する:**
 
-### 1-1: 今日の記事を BQ から取得
+### 1-1: 今日の記事を Cube から取得
 
-`mcp__bq__query` で今日のRSS記事を取得する。
+`mcp__cube__query` で今日のRSS記事を取得する（R2 上の parquet を DuckDB 経由で読む）。
 
-```sql
-SELECT DISTINCT id, url, title, content, source_name, source_category, published_at
-FROM sns_metrics.rss_articles
-WHERE DATE(published_at, 'Asia/Tokyo') = CURRENT_DATE('Asia/Tokyo')
-  AND source_category IN ('ai', 'dx', 'education')
-ORDER BY published_at DESC
-LIMIT 30
+```json
+{
+  "dimensions": [
+    "rss_articles.id",
+    "rss_articles.url",
+    "rss_articles.title",
+    "rss_articles.content",
+    "rss_articles.source_name",
+    "rss_articles.source_category",
+    "rss_articles.published_at"
+  ],
+  "filters": [
+    { "member": "rss_articles.source_category", "operator": "equals", "values": ["ai", "dx"] }
+  ],
+  "timeDimensions": [
+    { "dimension": "rss_articles.published_at", "dateRange": ["YYYY-MM-DD", "YYYY-MM-DD"] }
+  ],
+  "order": [["rss_articles.published_at", "desc"]],
+  "limit": 30
+}
 ```
 
-**注意:** `published_at` パーティション絞り込み必須。
+**注意:**
+- `dateRange` には JST 本日日付を絶対形式で（`"today"` 等の相対指定は DuckDB に直渡しされるため避ける）
+- Cube デフォルト timezone は JST（MCP server 側で `Asia/Tokyo` に固定済み）
 
-記事が0件の場合は、BQではなく Neon の `insights.articles` から直近3日分を取得してフォールバックする。
+記事が0件の場合は Cube 経由ではなく Neon の `insights.articles` から直近3日分を取得してフォールバックする。
 
 ### 1-2: アクティブなアイデアを Neon から取得
 
@@ -244,11 +259,16 @@ Xの推薦エンジン（Phoenix）は15種類のアクション確率を加重�
 
 ## Step 4: ファイル出力
 
-生成した投稿を `.claude/outputs/posts/YYYY-MM-DD.md` に保存する。
+生成した投稿を `.claude/outputs/posts/YYYY-MM-DD.md` に **追記** する。
 
 - ファイル名は JST の当日日付
 - Markdown 形式で各投稿を `## #N 種別（時間）` のヘッダーで区切る
 - `---` 区切りのセルフリプ用テキストもそのまま含める
+- **同日中に `/lab-demo` が先行実行されると `## #0 デモ紹介（朝）` セクションが先頭に書かれている可能性がある**ため、ファイルを **上書きせず追記** すること
+  - 既存ファイルの末尾に改行を確保してから新規セクションを追加する
+  - 既存セクション（特に `#0`）は絶対に削除・改変しない
+- ファイルが存在しなければ新規作成して #1 から書き始める
+- `/lab-demo` 由来の `#0` は時系列上 #1（朝の挨拶 8:30）より前なので、ファイル内では先頭→#1→#2... の順序を保つ
 
 ## Step 5: 完了表示
 

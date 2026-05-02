@@ -1,7 +1,19 @@
 cubes:
   - name: popular_videos
-    sql: "SELECT * FROM `sns-query.sns_metrics.popular_videos` WHERE snapshot_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)"
-    data_source: bigquery
+    data_source: duckdb
+    sql: >
+      SELECT * FROM (
+        SELECT
+          *,
+          ROW_NUMBER() OVER (
+            PARTITION BY video_id, region_code
+            ORDER BY dt DESC, created_at DESC
+          ) AS rn
+        FROM read_parquet(
+          's3://anydigi-lab/youtube/popular_videos/dt=*/*.parquet',
+          hive_partitioning = true
+        )
+      ) WHERE rn = 1
 
     dimensions:
       - name: video_id
@@ -10,7 +22,7 @@ cubes:
         primary_key: true
 
       - name: snapshot_date
-        sql: "TIMESTAMP(snapshot_date)"
+        sql: "CAST({CUBE}.snapshot_date AS DATE)"
         type: time
 
       - name: region_code
@@ -18,41 +30,53 @@ cubes:
         type: string
 
       - name: category
-        sql: basic_info.category
+        sql: "basic_info.category"
         type: string
 
       - name: video_title
-        sql: basic_info.title
+        sql: "basic_info.title"
+        type: string
+
+      - name: video_description
+        sql: "basic_info.description"
+        type: string
+
+      - name: channel_id
+        sql: channel_id
         type: string
 
       - name: channel_name
-        sql: channel.title
+        sql: "channel.title"
         type: string
 
       - name: channel_region
-        sql: channel.region
+        sql: "channel.region"
         type: string
 
       - name: published_at
-        sql: "basic_info.published_at"
+        sql: "CAST(basic_info.published_at AS TIMESTAMP)"
         type: time
+
+      - name: dt
+        sql: dt
+        type: string
 
     measures:
       - name: count
         type: count
 
       - name: total_views
-        sql: statistics.view_count
+        sql: "statistics.view_count"
         type: sum
 
       - name: total_likes
-        sql: statistics.like_count
+        sql: "statistics.like_count"
         type: sum
 
       - name: total_comments
-        sql: statistics.comment_count
+        sql: "statistics.comment_count"
         type: sum
 
       - name: avg_views
-        sql: statistics.view_count
+        sql: "statistics.view_count"
         type: avg

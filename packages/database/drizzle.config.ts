@@ -8,5 +8,5 @@ export default defineConfig({
   dbCredentials: {
     url: process.env.DATABASE_URL!,
   },
-  schemaFilter: ["insights", "trade", "users", "needradar"],
+  schemaFilter: ["insights", "trade", "users", "needradar", "demo"],
 });

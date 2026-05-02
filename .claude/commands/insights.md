@@ -1,25 +1,43 @@
 ---
 name: insights
-description: BQからRSS記事を取得し、ビジネスアイデアを抽出・スコアリングしてNeonに蓄積する
+description: R2(Cube経由)からRSS記事を取得し、ビジネスアイデアを抽出・スコアリングしてNeonに蓄積する
 ---
 
 insights モジュールの日次分析を実行します。
 
-## Step 1: BQ から記事を取得
+## Step 0: 前提
 
-`mcp__bq__query` で今日のRSS記事を取得する。
+R2 上の parquet を DuckDB で読むのは Cube セマンティックレイヤー経由（`mcp__cube__query`）で行う。Cube は `apps/cube/` の docker compose で起動している前提。停止していたら `cd apps/cube && docker compose up -d` で起動する。
 
-```sql
-SELECT DISTINCT id, url, title, content, source_name, source_category, published_at
-FROM sns_metrics.rss_articles
-WHERE DATE(published_at, 'Asia/Tokyo') = CURRENT_DATE('Asia/Tokyo')
-  AND source_category IN ('ai', 'dx')
-ORDER BY published_at DESC
-LIMIT 30
+## Step 1: Cube から記事を取得
+
+`mcp__cube__query` で今日のRSS記事を取得する。
+
+```json
+{
+  "dimensions": [
+    "rss_articles.id",
+    "rss_articles.url",
+    "rss_articles.title",
+    "rss_articles.content",
+    "rss_articles.source_name",
+    "rss_articles.source_category",
+    "rss_articles.published_at"
+  ],
+  "filters": [
+    { "member": "rss_articles.source_category", "operator": "equals", "values": ["ai", "dx"] }
+  ],
+  "timeDimensions": [
+    { "dimension": "rss_articles.published_at", "dateRange": ["YYYY-MM-DD", "YYYY-MM-DD"] }
+  ],
+  "order": [["rss_articles.published_at", "desc"]],
+  "limit": 30
+}
 ```
 
 **注意:**
-- `published_at` によるパーティション絞り込みは必須（コスト防止）
+- `dateRange` には JST の本日日付を絶対形式（`YYYY-MM-DD`）で2回入れる。MCP 経由なら timezone は `Asia/Tokyo` が既定。`"today"` 等の相対キーワードは DuckDB に直渡しされるので使わない
+- 明示的に当日を絞ることでスキャン量を最小化する
 - `content` はアイデア抽出に使うが Neon には保存しない
 - 記事が0件の場合は「本日の新着記事はありません」と表示して終了
 

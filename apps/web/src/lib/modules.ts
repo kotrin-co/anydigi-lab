@@ -2,6 +2,7 @@ export const modules = {
   insights: { public: false },
   trade: { public: false },
   needradar: { public: true },
+  demo: { public: true },
 } as const;
 
 export type ModuleName = keyof typeof modules;

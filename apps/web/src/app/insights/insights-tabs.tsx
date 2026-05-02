@@ -242,20 +242,22 @@ function IdeaCard({ idea, evidence }: { idea: Idea; evidence: Evidence[] }) {
           <span className="text-xs text-muted-foreground">
             Evidence ({evidence.length})
           </span>
-          {evidence.map((e, i) => (
-            <div
-              key={i}
-              className="text-xs text-muted-foreground pl-3 border-l-2 border-border"
-            >
-              <span className="text-foreground">{e.articleTitle}</span>
-              {e.relevanceNote && (
-                <>
-                  <span className="mx-1">—</span>
-                  {e.relevanceNote}
-                </>
-              )}
-            </div>
-          ))}
+          <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
+            {evidence.map((e, i) => (
+              <div
+                key={i}
+                className="text-xs text-muted-foreground pl-3 border-l-2 border-border"
+              >
+                <span className="text-foreground">{e.articleTitle}</span>
+                {e.relevanceNote && (
+                  <>
+                    <span className="mx-1">—</span>
+                    {e.relevanceNote}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

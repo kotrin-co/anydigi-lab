@@ -10,7 +10,8 @@
     "./schema/insights": "./schema/insights.ts",
     "./schema/trade": "./schema/trade.ts",
     "./schema/users": "./schema/users.ts",
-    "./schema/needradar": "./schema/needradar.ts"
+    "./schema/needradar": "./schema/needradar.ts",
+    "./schema/demo": "./schema/demo.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",

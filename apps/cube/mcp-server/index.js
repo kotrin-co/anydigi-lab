@@ -89,8 +89,12 @@ server.tool(
       .array(z.tuple([z.string(), z.enum(["asc", "desc"])]))
       .optional()
       .describe('e.g. [["popular_videos.count", "desc"]]'),
+    timezone: z
+      .string()
+      .optional()
+      .describe('IANA timezone for dateRange interpretation. Defaults to "Asia/Tokyo".'),
   },
-  async ({ measures, dimensions, timeDimensions, filters, limit, order }) => {
+  async ({ measures, dimensions, timeDimensions, filters, limit, order, timezone }) => {
     const query = {
       measures,
       ...(dimensions && { dimensions }),
@@ -98,6 +102,7 @@ server.tool(
       ...(filters && { filters }),
       ...(limit && { limit }),
       ...(order && { order: Object.fromEntries(order) }),
+      timezone: timezone || "Asia/Tokyo",
     };
 
     const result = await cubeFetch("/load", {

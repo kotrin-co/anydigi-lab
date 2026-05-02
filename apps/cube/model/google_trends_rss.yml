@@ -1,0 +1,54 @@
+cubes:
+  - name: google_trends_rss
+    data_source: duckdb
+    sql: >
+      SELECT * FROM (
+        SELECT
+          *,
+          ROW_NUMBER() OVER (
+            PARTITION BY keyword, region
+            ORDER BY dt DESC, pub_date DESC, created_at DESC
+          ) AS rn
+        FROM read_parquet(
+          's3://anydigi-lab/google_trends/rss/dt=*/*.parquet',
+          hive_partitioning = true
+        )
+      ) WHERE rn = 1
+
+    dimensions:
+      - name: keyword
+        sql: keyword
+        type: string
+        primary_key: true
+
+      - name: region
+        sql: region
+        type: string
+
+      - name: picture_url
+        sql: picture_url
+        type: string
+
+      - name: picture_source
+        sql: picture_source
+        type: string
+
+      - name: pub_date
+        sql: "CAST(pub_date AS TIMESTAMP)"
+        type: time
+
+      - name: dt
+        sql: dt
+        type: string
+
+    measures:
+      - name: count
+        type: count
+
+      - name: total_traffic
+        sql: traffic
+        type: sum
+
+      - name: avg_traffic
+        sql: traffic
+        type: avg

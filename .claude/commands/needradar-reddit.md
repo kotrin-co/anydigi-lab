@@ -1,52 +1,50 @@
 ---
 name: needradar-reddit
-description: Reddit投稿からニーズを抽出してneedradar.needsに蓄積する
+description: Reddit投稿（R2/Cube経由）からニーズを抽出してneedradar.needsに蓄積する
 ---
 
 NeedRadar のニーズ収集（Reddit版）を実行します。
 
-## Step 1: BQ から投稿取得
+## Step 1: Cube から投稿取得
 
-`mcp__bq__query` で **最新 snapshot_date** の Reddit 投稿を全件取得する。
+`mcp__cube__query` で本日（または昨日フォールバック）の Reddit 投稿を取得する。R2 上の parquet を DuckDB 経由で読む。Cube モデル `reddit_posts` はすでに `post_id` で dedup 済み（最新 dt の行のみ採用）。
 
-```sql
-WITH latest AS (
-  SELECT MAX(snapshot_date) AS snapshot_date
-  FROM `sns_metrics.reddit_posts`
-),
-dedup AS (
-  SELECT
-    p.post_id,
-    p.subreddit,
-    p.category,
-    p.language,
-    p.score,
-    p.upvote_ratio,
-    p.num_comments,
-    p.title,
-    p.selftext,
-    p.permalink,
-    ROW_NUMBER() OVER (PARTITION BY p.post_id ORDER BY p.score DESC) AS rn
-  FROM `sns_metrics.reddit_posts` p
-  JOIN latest l ON p.snapshot_date = l.snapshot_date
-  WHERE p.stickied = FALSE
-    AND p.over_18 = FALSE
-    AND LENGTH(p.title) BETWEEN 15 AND 300
-)
-SELECT
-  post_id, subreddit, category, language, score, upvote_ratio, num_comments,
-  title, selftext, permalink
-FROM dedup
-WHERE rn = 1
-ORDER BY category, score DESC
+```json
+{
+  "dimensions": [
+    "reddit_posts.post_id",
+    "reddit_posts.subreddit",
+    "reddit_posts.category",
+    "reddit_posts.language",
+    "reddit_posts.title",
+    "reddit_posts.selftext",
+    "reddit_posts.permalink"
+  ],
+  "measures": [
+    "reddit_posts.total_score",
+    "reddit_posts.avg_upvote_ratio",
+    "reddit_posts.total_comments"
+  ],
+  "filters": [
+    { "member": "reddit_posts.stickied", "operator": "equals", "values": ["false"] },
+    { "member": "reddit_posts.over_18", "operator": "equals", "values": ["false"] }
+  ],
+  "timeDimensions": [
+    { "dimension": "reddit_posts.snapshot_date", "dateRange": ["YYYY-MM-DD", "YYYY-MM-DD"] }
+  ],
+  "order": [["reddit_posts.total_score", "desc"]],
+  "limit": 1000
+}
 ```
 
 **注意:**
-- パーティション絞り込み（snapshot_date = 最新）必須
-- reddit_posts は 48h 保持なので、最新の snapshot_date を都度取得する
-- カテゴリ6種（startup / ai / business / food / tech / japan）を全件分析する（YouTubeコメントほど件数は多くない想定）
-- 結果はファイル保存されるので Read ツールで読み込んで分析する
-- 投稿が0件の場合は「本日の対象投稿はありません」と表示して終了
+- `dateRange` には JST 本日日付を絶対形式で2回（`"today"` 等の相対キーワードは使わない）
+- R2 lifecycle により `reddit/posts/` は 2 日保持（古いものは自動削除されるので、データ量は自然に絞られる）
+- 0 件の場合は `dateRange` を昨日〜本日に広げて再試行する
+- それでも 0 件なら「本日の対象投稿はありません」と表示して終了
+- `score`, `upvote_ratio`, `num_comments` は `total_*` measure として取得する（dedup 済みなので 1 行 1 投稿、合計 = その投稿の値）
+- `LENGTH(title) BETWEEN 15 AND 300` は Claude 側で取得後にフィルタする
+- カテゴリ6種（startup / ai / business / food / tech / japan）を全件分析する
 
 ## Step 2: ニーズ抽出
 
@@ -144,3 +142,16 @@ import { generateEmbedding, findSimilarNeeds } from "@anydigi-lab/database/embed
 - スキップ: X件
 - アクティブニーズ総数: X件
 ```
+
+## Step 7: 成功時のアーカイブ
+
+サマリー表示まで成功した場合のみ、本実行で `scripts/` 配下に生成したスクリプトを `scripts/archives/YYYY-MM/`（YYYY-MM は実行日の年月）へ移動する。
+
+```bash
+mkdir -p scripts/archives/YYYY-MM
+mv scripts/<本実行で生成したファイル名> scripts/archives/YYYY-MM/
+```
+
+- 失敗・中断した場合は移動しない（再実行で内容を確認・修正できるよう残す）
+- 複数ファイルを生成した場合は全て移動する
+- ディレクトリが既にあれば `mkdir -p` は no-op

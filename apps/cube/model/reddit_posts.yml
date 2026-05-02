@@ -1,0 +1,98 @@
+cubes:
+  - name: reddit_posts
+    data_source: duckdb
+    sql: >
+      SELECT * FROM (
+        SELECT
+          *,
+          ROW_NUMBER() OVER (
+            PARTITION BY post_id
+            ORDER BY dt DESC, created_at DESC
+          ) AS rn
+        FROM read_parquet(
+          's3://anydigi-lab/reddit/posts/dt=*/*.parquet',
+          hive_partitioning = true
+        )
+      ) WHERE rn = 1
+
+    dimensions:
+      - name: post_id
+        sql: post_id
+        type: string
+        primary_key: true
+
+      - name: snapshot_date
+        sql: "CAST(snapshot_date AS DATE)"
+        type: time
+
+      - name: subreddit
+        sql: subreddit
+        type: string
+
+      - name: title
+        sql: title
+        type: string
+
+      - name: selftext
+        sql: selftext
+        type: string
+
+      - name: url
+        sql: url
+        type: string
+
+      - name: permalink
+        sql: permalink
+        type: string
+
+      - name: author
+        sql: author
+        type: string
+
+      - name: flair
+        sql: flair
+        type: string
+
+      - name: category
+        sql: category
+        type: string
+
+      - name: language
+        sql: language
+        type: string
+
+      - name: posted_at
+        sql: "CAST(posted_at AS TIMESTAMP)"
+        type: time
+
+      - name: stickied
+        sql: stickied
+        type: boolean
+
+      - name: over_18
+        sql: over_18
+        type: boolean
+
+      - name: dt
+        sql: dt
+        type: string
+
+    measures:
+      - name: count
+        type: count
+
+      - name: total_score
+        sql: score
+        type: sum
+
+      - name: total_comments
+        sql: num_comments
+        type: sum
+
+      - name: avg_score
+        sql: score
+        type: avg
+
+      - name: avg_upvote_ratio
+        sql: upvote_ratio
+        type: avg

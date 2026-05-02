@@ -1,55 +1,46 @@
 ---
 name: needradar-youtube
-description: YouTubeコメントからニーズを抽出してneedradar.needsに蓄積する
+description: YouTubeコメント（R2/Cube経由）からニーズを抽出してneedradar.needsに蓄積する
 ---
 
 NeedRadar のニーズ収集を実行します。
 
-## Step 1: BQ からコメント取得
+## Step 1: Cube からコメント取得
 
-`mcp__bq__query` で昨日の YouTube コメントを取得する。
+`mcp__cube__query` で昨日の YouTube コメント（人気動画に紐づくもの）を取得する。R2 上の parquet を DuckDB 経由で読む。`video_comments` cube は `popular_videos` cube と `video_id` で join 済み。
 
-```sql
-WITH target_videos AS (
-  SELECT DISTINCT video_id, basic_info.category AS category, region_code
-  FROM `sns_metrics.popular_videos`
-  WHERE snapshot_date = DATE_SUB(CURRENT_DATE('Asia/Tokyo'), INTERVAL 1 DAY)
-    AND region_code IN ('JP', 'US', 'KR')
-    AND basic_info.category IN ('ハウツーとスタイル', '科学と技術', '自動車と乗り物', 'ペットと動物', 'ブログ')
-),
-dedup AS (
-  SELECT
-    c.comment_id,
-    v.category,
-    v.region_code,
-    c.text,
-    c.like_count,
-    ROW_NUMBER() OVER (PARTITION BY c.comment_id ORDER BY c.like_count DESC) AS rn
-  FROM `sns_metrics.video_comments` c
-  JOIN target_videos v ON c.video_id = v.video_id
-  WHERE c.snapshot_date = DATE_SUB(CURRENT_DATE('Asia/Tokyo'), INTERVAL 1 DAY)
-    AND LENGTH(c.text) BETWEEN 15 AND 500
-),
-ranked AS (
-  SELECT
-    comment_id, category, region_code, like_count, text,
-    ROW_NUMBER() OVER (
-      PARTITION BY category, region_code
-      ORDER BY like_count DESC
-    ) AS rank_in_group
-  FROM dedup
-  WHERE rn = 1
-)
-SELECT comment_id, category, region_code, like_count, text
-FROM ranked
-WHERE rank_in_group <= 1000
-ORDER BY region_code, category, like_count DESC
+```json
+{
+  "dimensions": [
+    "video_comments.comment_id",
+    "video_comments.video_id",
+    "video_comments.text",
+    "video_comments.like_count",
+    "popular_videos.region_code",
+    "popular_videos.category"
+  ],
+  "filters": [
+    { "member": "popular_videos.region_code", "operator": "equals", "values": ["JP", "US", "KR"] },
+    { "member": "popular_videos.category", "operator": "equals",
+      "values": ["ハウツーとスタイル", "科学と技術", "自動車と乗り物", "ペットと動物", "ブログ"] },
+    { "member": "video_comments.text_length", "operator": "gte", "values": ["15"] },
+    { "member": "video_comments.text_length", "operator": "lte", "values": ["500"] }
+  ],
+  "timeDimensions": [
+    { "dimension": "video_comments.snapshot_date", "dateRange": ["YYYY-MM-DD", "YYYY-MM-DD"] },
+    { "dimension": "popular_videos.snapshot_date", "dateRange": ["YYYY-MM-DD", "YYYY-MM-DD"] }
+  ],
+  "order": [["video_comments.like_count", "desc"]],
+  "limit": 5000
+}
 ```
 
 **注意:**
-- パーティション絞り込み（snapshot_date）必須
-- カテゴリ5種 × 国3種 × 上位1000件 = 最大15,000件
-- 結果はファイル保存されるので Read ツールで読み込んで分析する
+- `dateRange` には JST 昨日日付を絶対形式で2回（`"yesterday"` 等の相対キーワードは使わない）
+- `popular_videos` への join により region_code / category でフィルタできる
+- カテゴリ5種 × 国3種 を一括取得、`like_count` 降順で 5000 件まで（per-group top-N は厳密ではないが、グローバル上位 5000 件で十分）
+- region_code / category ごとの偏りは Claude 側で確認し、必要なら抽出時に各グループから明示的にサンプリングする
+- 結果は Read ツールで読み込んで分析する
 - コメントが0件の場合は「本日の対象コメントはありません」と表示して終了
 
 ## Step 2: ニーズ抽出
@@ -140,3 +131,16 @@ import { generateEmbedding, findSimilarNeeds } from "@anydigi-lab/database/embed
 - スキップ: X件
 - アクティブニーズ総数: X件
 ```
+
+## Step 7: 成功時のアーカイブ
+
+サマリー表示まで成功した場合のみ、本実行で `scripts/` 配下に生成したスクリプト（`scripts/needradar-collect-YYYY-MM-DD.ts`）を `scripts/archives/YYYY-MM/`（YYYY-MM は実行日の年月）へ移動する。
+
+```bash
+mkdir -p scripts/archives/YYYY-MM
+mv scripts/needradar-collect-YYYY-MM-DD.ts scripts/archives/YYYY-MM/
+```
+
+- 失敗・中断した場合は移動しない（再実行で内容を確認・修正できるよう残す）
+- 複数ファイルを生成した場合は全て移動する
+- ディレクトリが既にあれば `mkdir -p` は no-op

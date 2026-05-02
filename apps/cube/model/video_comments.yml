@@ -1,0 +1,75 @@
+cubes:
+  - name: video_comments
+    data_source: duckdb
+    sql: >
+      SELECT * FROM (
+        SELECT
+          *,
+          ROW_NUMBER() OVER (
+            PARTITION BY comment_id
+            ORDER BY dt DESC, created_at DESC
+          ) AS rn
+        FROM read_parquet(
+          's3://anydigi-lab/youtube/comments/dt=*/*.parquet',
+          hive_partitioning = true
+        )
+      ) WHERE rn = 1
+
+    joins:
+      - name: popular_videos
+        relationship: many_to_one
+        sql: "{video_comments}.video_id = {popular_videos}.video_id"
+
+    dimensions:
+      - name: comment_id
+        sql: comment_id
+        type: string
+        primary_key: true
+
+      - name: snapshot_date
+        sql: "CAST({CUBE}.snapshot_date AS DATE)"
+        type: time
+
+      - name: video_id
+        sql: "{CUBE}.video_id"
+        type: string
+
+      - name: channel_id
+        sql: "{CUBE}.channel_id"
+        type: string
+
+      - name: text
+        sql: text
+        type: string
+
+      - name: author_name
+        sql: author_name
+        type: string
+
+      - name: published_at
+        sql: "CAST(published_at AS TIMESTAMP)"
+        type: time
+
+      - name: dt
+        sql: dt
+        type: string
+
+      - name: like_count
+        sql: like_count
+        type: number
+
+      - name: text_length
+        sql: "LENGTH(text)"
+        type: number
+
+    measures:
+      - name: count
+        type: count
+
+      - name: total_likes
+        sql: like_count
+        type: sum
+
+      - name: total_replies
+        sql: reply_count
+        type: sum

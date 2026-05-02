@@ -164,6 +164,19 @@ import { generateEmbedding, findSimilarNeeds } from "@anydigi-lab/database/embed
 - アクティブニーズ総数: X件
 ```
 
+## Step 8: 成功時のアーカイブ
+
+サマリー表示まで成功した場合のみ、本実行で `scripts/` 配下に生成したスクリプトを `scripts/archives/YYYY-MM/`（YYYY-MM は実行日の年月）へ移動する。
+
+```bash
+mkdir -p scripts/archives/YYYY-MM
+mv scripts/<本実行で生成したファイル名> scripts/archives/YYYY-MM/
+```
+
+- 失敗・中断した場合は移動しない（再実行で内容を確認・修正できるよう残す）
+- 複数ファイルを生成した場合は全て移動する
+- ディレクトリが既にあれば `mkdir -p` は no-op
+
 ## 注意事項
 
 - **生データを公開ページに出さない**（案件本文や URL を NeedRadar 公開ページに掲載しない）
