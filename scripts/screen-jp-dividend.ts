@@ -1,23 +1,21 @@
 /**
  * 日本株高配当スクリーニング（都度実行）
  *
- * Yahoo配当利回りランキング + Neon蓄積済み財務データ → スコアリング → 結果格納
- * 財務データはcrawl-irbank.tsで事前に蓄積されている前提。
+ * Yahoo配当利回りランキング + R2 蓄積済み財務データ → スコアリング → Neon stocks 格納
+ * 財務データはcrawl-irbank.tsで R2 に蓄積されている前提。
  *
  * Usage:
  *   npx tsx scripts/screen-jp-dividend.ts [--dry-run] [--limit N] [--min-yield N]
  */
 
-import "dotenv/config";
+import "./_load-env";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { eq, inArray, asc } from "drizzle-orm";
 import {
   screeningBatches,
   stocks,
-  stockProfiles,
-  stockFinancials,
 } from "@anydigi-lab/database/schema/trade";
+import { r2, SCHEMAS } from "@anydigi-lab/database/r2";
 import { fetchAllDividendRanking } from "../apps/web/src/lib/trade/scraper";
 import { calcFinancialScores } from "../apps/web/src/lib/trade/financial-scoring";
 import type { YearlyData } from "../apps/web/src/lib/trade/financial-scoring";
@@ -38,8 +36,108 @@ const limit = limitIdx >= 0 ? parseInt(args[limitIdx + 1]) : null;
 const yieldIdx = args.indexOf("--min-yield");
 const minYield = yieldIdx >= 0 ? parseFloat(args[yieldIdx + 1]) : 3.0;
 
+type ProfileRow = {
+  code: string;
+  name: string;
+  industry: string | null;
+  last_crawled_at: string;
+  created_at: string;
+};
+
+type FinancialRow = {
+  code: string;
+  fiscal_year: string;
+  revenue: number | null;
+  operating_profit: number | null;
+  eps: number | null;
+  operating_margin: number | null;
+  equity_ratio: number | null;
+  operating_cf: number | null;
+  cash_equivalents: number | null;
+  dividend_per_share: number | null;
+  payout_ratio: number | null;
+  updated_at: string;
+};
+
+function escForSql(value: string): string {
+  return value.replace(/'/g, "''");
+}
+
+async function loadProfiles(codes: string[]): Promise<Map<string, ProfileRow>> {
+  if (codes.length === 0) return new Map();
+  const glob = r2.pathGlob(SCHEMAS.STOCK_PROFILES.prefix);
+  const codeList = codes.map((c) => `'${escForSql(c)}'`).join(",");
+  try {
+    const rows = await r2.query<ProfileRow>(`
+      SELECT code, name, industry, last_crawled_at, created_at
+      FROM (
+        SELECT
+          code, name, industry, last_crawled_at, created_at,
+          ROW_NUMBER() OVER (PARTITION BY code ORDER BY dt DESC, last_crawled_at DESC) AS rn
+        FROM read_parquet('${glob}', hive_partitioning=true)
+        WHERE code IN (${codeList})
+      )
+      WHERE rn = 1
+    `);
+    return new Map(rows.map((r) => [r.code, r]));
+  } catch (e: any) {
+    if (typeof e?.message === "string" && /No files found|IO Error/i.test(e.message)) {
+      return new Map();
+    }
+    throw e;
+  }
+}
+
+async function loadFinancials(codes: string[]): Promise<Map<string, YearlyData[]>> {
+  if (codes.length === 0) return new Map();
+  const glob = r2.pathGlob(SCHEMAS.STOCK_FINANCIALS.prefix);
+  const codeList = codes.map((c) => `'${escForSql(c)}'`).join(",");
+  try {
+    const rows = await r2.query<FinancialRow>(`
+      SELECT
+        code, fiscal_year, revenue, operating_profit, eps,
+        operating_margin, equity_ratio, operating_cf,
+        cash_equivalents, dividend_per_share, payout_ratio, updated_at
+      FROM (
+        SELECT
+          code, fiscal_year, revenue, operating_profit, eps,
+          operating_margin, equity_ratio, operating_cf,
+          cash_equivalents, dividend_per_share, payout_ratio, updated_at,
+          ROW_NUMBER() OVER (PARTITION BY code, fiscal_year ORDER BY dt DESC, updated_at DESC) AS rn
+        FROM read_parquet('${glob}', hive_partitioning=true)
+        WHERE code IN (${codeList})
+      )
+      WHERE rn = 1
+      ORDER BY code, fiscal_year
+    `);
+
+    const map = new Map<string, YearlyData[]>();
+    for (const row of rows) {
+      const list = map.get(row.code) ?? [];
+      list.push({
+        fiscalYear: row.fiscal_year,
+        revenue: row.revenue,
+        eps: row.eps,
+        operatingMargin: row.operating_margin,
+        equityRatio: row.equity_ratio,
+        operatingCf: row.operating_cf,
+        cashEquivalents: row.cash_equivalents,
+        dividendPerShare: row.dividend_per_share,
+        payoutRatio: row.payout_ratio,
+      });
+      map.set(row.code, list);
+    }
+    return map;
+  } catch (e: any) {
+    if (typeof e?.message === "string" && /No files found|IO Error/i.test(e.message)) {
+      return new Map();
+    }
+    throw e;
+  }
+}
+
 async function main() {
-  console.log("=== JP高配当株スクリーニング ===");
+  console.log("=== JP高配当株スクリーニング (R2) ===");
   if (dryRun) console.log("[DRY RUN] DB書き込みなし");
   if (limit) console.log(`[LIMIT] 先頭${limit}銘柄のみ`);
   console.log(`最低利回り: ${minYield}%`);
@@ -55,49 +153,17 @@ async function main() {
   console.log(`  対象: ${targetStocks.length}銘柄`);
   console.log();
 
-  // ── Phase 2: Neonから財務データ一括取得 ──
-  console.log("Phase 2: Neonから財務データ取得...");
-
-  // プロファイル取得
-  const profiles = codes.length > 0
-    ? await db
-        .select()
-        .from(stockProfiles)
-        .where(inArray(stockProfiles.code, codes))
-    : [];
-  const profileMap = new Map(profiles.map((p) => [p.code, p]));
-
-  // 年次財務データ取得
-  const financials = codes.length > 0
-    ? await db
-        .select()
-        .from(stockFinancials)
-        .where(inArray(stockFinancials.code, codes))
-        .orderBy(asc(stockFinancials.code), asc(stockFinancials.fiscalYear))
-    : [];
-
-  // code → YearlyData[] にグルーピング
-  const financialMap = new Map<string, YearlyData[]>();
-  for (const row of financials) {
-    const list = financialMap.get(row.code) ?? [];
-    list.push({
-      fiscalYear: row.fiscalYear,
-      revenue: row.revenue,
-      eps: row.eps,
-      operatingMargin: row.operatingMargin,
-      equityRatio: row.equityRatio,
-      operatingCf: row.operatingCf,
-      cashEquivalents: row.cashEquivalents,
-      dividendPerShare: row.dividendPerShare,
-      payoutRatio: row.payoutRatio,
-    });
-    financialMap.set(row.code, list);
-  }
+  // ── Phase 2: R2 から財務データ取得（ROW_NUMBER で最新だけ採用）──
+  console.log("Phase 2: R2 から財務データ取得 (DuckDB)...");
+  const [profileMap, financialMap] = await Promise.all([
+    loadProfiles(codes),
+    loadFinancials(codes),
+  ]);
 
   const withData = targetStocks.filter((s) => financialMap.has(s.code)).length;
   const withoutData = targetStocks.length - withData;
   console.log(
-    `  財務データあり: ${withData}銘柄, なし: ${withoutData}銘柄`
+    `  プロファイル: ${profileMap.size}銘柄, 財務データあり: ${withData}銘柄, なし: ${withoutData}銘柄`,
   );
   console.log();
 
@@ -117,7 +183,6 @@ async function main() {
     const yearlyData = financialMap.get(yahoo.code);
     const industry = profile?.industry ?? null;
 
-    // 財務データなし → スコアなしで登録
     if (!yearlyData || yearlyData.length === 0) {
       stockRows.push({
         batchId: 0,
@@ -132,17 +197,9 @@ async function main() {
       continue;
     }
 
-    // 8項目財務スコア
     const fin = calcFinancialScores(yearlyData, industry);
-
-    // 割安スコア（ROE + PBR）
-    // 現状PBRはIRバンクから直接取れないのでnull
     const valuation = calcValuationScore(null, null);
-
-    // 業種スコア
     const industryResult = calcIndustryScore(industry);
-
-    // 総合スコア
     const composite = calcCompositeScore({
       financial: fin.total,
       valuation: valuation?.score ?? null,
@@ -161,7 +218,6 @@ async function main() {
       yieldPct: yahoo.yieldPct,
       segment: "corporate",
       rank: i + 1,
-      // 8項目スコア内訳
       scoreRevenueTrend: fin.revenueTrend.score,
       scoreEpsTrend: fin.epsTrend.score,
       scoreOperatingMargin: fin.operatingMargin.score,
@@ -171,12 +227,10 @@ async function main() {
       scoreDividendTrend: fin.dividendTrend.score,
       scorePayoutRatio: fin.payoutRatio.score,
       financialScoreRaw: fin.total,
-      // 3軸スコア
       financialScore: fin.total,
       valuationScore: valuation?.score ?? null,
       industryScore100: industryResult.score,
       compositeScore: composite,
-      // Tier自動分類（財務スコアのみで判定、失格はnull）
       tier: fin.disqualified
         ? null
         : fin.total >= 90
@@ -186,22 +240,17 @@ async function main() {
             : fin.total >= 50
               ? "B"
               : "C",
-      // Core/Satellite自動分類（Tier S のみ）
-      // Core: 直近5期で減収なし + 配当トレンドスコア10以上
-      // Satellite: Tier S だが上記を満たさない
       recommendedPosition: (() => {
         if (fin.disqualified || fin.total < 90) return null;
         const revs = yearlyData
-          .slice(-6) // 直近6年分（5期分の前年比較に必要）
+          .slice(-6)
           .map((d) => d.revenue)
           .filter((r): r is number => r != null);
         const hasRevenueDecline =
-          revs.length >= 2 &&
-          revs.slice(1).some((r, i) => r < revs[i]);
+          revs.length >= 2 && revs.slice(1).some((r, i) => r < revs[i]);
         const stableDividend = fin.dividendTrend.score >= 10;
         return !hasRevenueDecline && stableDividend ? "core" : "satellite";
       })(),
-      // 失格情報
       disqualified: fin.disqualified,
       disqualifiedReason: fin.disqualifiedReason,
       lossYears: fin.lossYears,
@@ -214,7 +263,6 @@ async function main() {
   console.log(`  適格: ${qualified}銘柄, 失格: ${disqualifiedCount}銘柄`);
   console.log();
 
-  // サマリー出力
   const scored = stockRows.filter((s) => s.financialScoreRaw != null);
   scored.sort((a, b) => (b.compositeScore ?? 0) - (a.compositeScore ?? 0));
   console.log("Top 15 by composite score:");
@@ -229,7 +277,7 @@ async function main() {
       comp: s.compositeScore,
       tier: s.tier ?? "—",
       dq: s.disqualified ? "×" : "",
-    }))
+    })),
   );
 
   if (dryRun) {
@@ -237,7 +285,7 @@ async function main() {
     return;
   }
 
-  // ── Phase 4: Neon格納 ──
+  // ── Phase 4: Neon (stocks) 格納 ──
   console.log("Phase 4: Neonに格納...");
 
   const [batch] = await db
@@ -245,7 +293,7 @@ async function main() {
     .values({
       genre: "jp-high-dividend",
       generatedAt: today,
-      source: "yahoo-finance-jp+irbank-master",
+      source: "yahoo-finance-jp+r2-master",
       note: `Yahoo配当利回り${minYield}%以上 ${targetStocks.length}銘柄`,
       totalCount: targetStocks.length,
       maxScore: 100,
@@ -265,9 +313,7 @@ async function main() {
     console.log(`  stocks: ${inserted}/${stockRows.length}`);
   }
 
-  console.log(
-    `\n完了! バッチ #${batch.id}, ${stockRows.length}銘柄`
-  );
+  console.log(`\n完了! バッチ #${batch.id}, ${stockRows.length}銘柄`);
 }
 
 main().catch((e) => {

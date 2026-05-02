@@ -97,41 +97,6 @@ export const stocks = tradeSchema.table(
   ]
 );
 
-// ── 銘柄プロファイル（マスター） ──
-
-export const stockProfiles = tradeSchema.table("stock_profiles", {
-  code: text("code").primaryKey(),
-  name: text("name").notNull(),
-  industry: text("industry"),
-  lastCrawledAt: timestamp("last_crawled_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
-
-// ── 年次財務データ（マスター、バッチ非依存） ──
-
-export const stockFinancials = tradeSchema.table(
-  "stock_financials",
-  {
-    id: serial("id").primaryKey(),
-    code: text("code").notNull(),
-    fiscalYear: text("fiscal_year").notNull(),
-    revenue: real("revenue"),
-    operatingProfit: real("operating_profit"),
-    eps: real("eps"),
-    operatingMargin: real("operating_margin"),
-    equityRatio: real("equity_ratio"),
-    operatingCf: real("operating_cf"),
-    cashEquivalents: real("cash_equivalents"),
-    dividendPerShare: real("dividend_per_share"),
-    payoutRatio: real("payout_ratio"),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-  },
-  (table) => [
-    index("stock_financials_code_idx").on(table.code),
-    unique("stock_financials_code_year_uniq").on(table.code, table.fiscalYear),
-  ]
-);
-
 // ── ポートフォリオサマリー（Tier S バッチ単位） ──
 
 export const portfolioSummaries = tradeSchema.table("portfolio_summaries", {
