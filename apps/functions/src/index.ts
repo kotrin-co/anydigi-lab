@@ -2,12 +2,13 @@ import { setGlobalOptions } from "firebase-functions";
 import * as admin from "firebase-admin";
 import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-// import { DevSavePopularVideos } from "./dev/save-popular-videos";
 import {
   PopularVideosService,
   GoogleTrendRssService,
   ArticleRssFeedService,
+  RedditService,
 } from "./services";
+import { DuckdbTestService } from "./dev/duckdb-test";
 import { withMetrics } from "./utils";
 
 admin.initializeApp();
@@ -17,7 +18,7 @@ export const dev = onRequest(
   {
     region: "asia-northeast1",
     memory: "1GiB",
-    timeoutSeconds: 900,
+    timeoutSeconds: 3600,
   },
   async (request, response) => {
     if (!process.env.FUNCTIONS_EMULATOR) {
@@ -25,10 +26,11 @@ export const dev = onRequest(
       return;
     }
 
-    const service = new ArticleRssFeedService();
-    await service.execute();
+    const service = new DuckdbTestService();
+    // const service = new RedditService();
+    const result = await service.execute();
 
-    response.json({ success: true });
+    response.json({ success: true, result });
   },
 );
 
@@ -68,7 +70,24 @@ export const googleTrendsRssScheduler = onSchedule(
 
 export const articleRssFeedScheduler = onSchedule(
   {
-    schedule: "*/15 * * * *",
+    schedule: "0 */3 * * *",
+    region: "asia-northeast1",
+    memory: "512MiB",
+    timeoutSeconds: 180,
+    retryCount: 1,
+    timeZone: "Asia/Tokyo",
+  },
+  async () => {
+    await withMetrics("articleRssFeedScheduler", async () => {
+      const service = new ArticleRssFeedService();
+      await service.execute();
+    });
+  },
+);
+
+export const redditScheduler = onSchedule(
+  {
+    schedule: "30 5 * * *",
     region: "asia-northeast1",
     memory: "512MiB",
     timeoutSeconds: 180,
@@ -76,8 +95,8 @@ export const articleRssFeedScheduler = onSchedule(
     timeZone: "Asia/Tokyo",
   },
   async () => {
-    await withMetrics("articleRssFeedScheduler", async () => {
-      const service = new ArticleRssFeedService();
+    await withMetrics("redditScheduler", async () => {
+      const service = new RedditService();
       await service.execute();
     });
   },

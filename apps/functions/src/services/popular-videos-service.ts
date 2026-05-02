@@ -11,7 +11,7 @@ import { getChunks } from "../utils";
 import {
   PopularVideoRepository,
   VideoCommentRepository,
-} from "../repositories/bigquery";
+} from "../repositories/r2";
 import { VIDEO_CATEGORIES } from "../constants/youtube";
 
 const REGIONS = ["JP", "US", "KR"];

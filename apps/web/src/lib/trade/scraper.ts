@@ -147,11 +147,12 @@ function parseYahooRankingPage(html: string): YahooStock[] {
     )
       return;
 
-    // td[1] から株価を抽出（"1,63104/17" → "1,631"）
-    // 末尾の日付部分 "MM/DD" (5文字) を除去してからパース
+    // td[1] から株価を抽出
+    // 取引値セルは market 開場中は時刻 "1,33811:30"、閉場後は日付 "1,63104/17" が連結される。
+    // 「3桁ごとのカンマ」ルールに従って先頭の数値部分だけを取り出す（例 "3,08511:30" → "3,085"）。
     const priceRaw = $(cells[1]).text().trim();
-    const priceText = priceRaw.replace(/\d{2}\/\d{2}$/, "");
-    const price = parseSimpleNumber(priceText);
+    const priceMatch = priceRaw.match(/^(\d{1,3}(?:,\d{3})*(?:\.\d+)?)/);
+    const price = priceMatch ? parseSimpleNumber(priceMatch[1]) : null;
 
     // td[4] から配当利回りを抽出（"+7.17%" → 7.17）
     const yieldText = $(cells[4]).text().trim();

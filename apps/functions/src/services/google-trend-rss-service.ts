@@ -1,6 +1,6 @@
 import Parser from "rss-parser";
 import * as logger from "firebase-functions/logger";
-import { GoogleTrendsRssRepository } from "../repositories/bigquery/google-trends-rss-repository";
+import { GoogleTrendsRssRepository } from "../repositories/r2/google-trends-rss-repository";
 
 const RSS_BASE_URL = "https://trends.google.co.jp/trending/rss?geo=";
 const REGIONS = ["JP", "US", "KR"];

@@ -63,6 +63,21 @@ Claude Code Maxの定額契約をサーバーサイドAI処理に再利用し、
 - 「ポートフォリオ」「保有資産」「資産状況」などデータの確認・操作を求められた場合は、コードを読むのではなくMCPツール（get_portfolio, get_portfolio_summary等）で実データを取得すること
 - コードの確認が必要な場合はユーザーが「コードを見て」「実装を確認して」等と明示する
 
+### bq MCP の登録（重要）
+nvm 経由で node を入れているため、bq MCP は **絶対パスの node + env.PATH** で登録すること。
+`command: "node"`（相対指定）のままだと Claude Code が spawn する環境で PATH 解決できず "Failed to connect" になる（過去に複数回再発）。
+
+正しい登録コマンド:
+```bash
+claude mcp remove "bq" -s user
+claude mcp add bq /Users/kentaronakagawa/.nvm/versions/node/v20.12.2/bin/node \
+  -s user \
+  --env PATH=/Users/kentaronakagawa/.nvm/versions/node/v20.12.2/bin:/usr/bin:/bin \
+  -- /Users/kentaronakagawa/Documents/_APPs/sns-query/mcp-bq/dist/index.js
+```
+
+検出方法: `claude mcp list` で `bq: ✗ Failed to connect` を見たらまず `claude mcp get bq` で `Command: node`（フルパスなし）か `Environment:` が空かを確認。該当すれば再登録。
+
 ### フェーズ計画
 - Phase 0: 開発環境整備（リポジトリ、Next.js、Vercel、Neon、Drizzle）
 - Phase 1: insights基本機能（スキーマ確定、/morning改修、Vercel表示）

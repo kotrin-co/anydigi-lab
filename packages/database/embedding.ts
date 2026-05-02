@@ -12,6 +12,28 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   return response.data[0].embedding;
 }
 
+export async function findSimilarNeeds(
+  db: typeof dbType,
+  embedding: number[],
+  threshold = 0.80
+): Promise<{ id: number; title: string; sources: string[]; similarity: number }[]> {
+  const vectorStr = `[${embedding.join(",")}]`;
+  const result = await db.execute<{
+    id: number;
+    title: string;
+    sources: string[];
+    similarity: number;
+  }>(
+    sql`SELECT id, title, sources, 1 - (embedding <=> ${vectorStr}::vector) as similarity
+        FROM needradar.needs
+        WHERE status = 'active'
+          AND embedding IS NOT NULL
+          AND 1 - (embedding <=> ${vectorStr}::vector) > ${threshold}
+        ORDER BY similarity DESC`
+  );
+  return result.rows;
+}
+
 export async function findSimilarIdeas(
   db: typeof dbType,
   embedding: number[],

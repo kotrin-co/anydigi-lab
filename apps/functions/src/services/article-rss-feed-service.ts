@@ -1,12 +1,12 @@
 import * as logger from "firebase-functions/logger";
 import Parser from "rss-parser";
-import { RssArticleRepository } from "../repositories/bigquery";
+import { RssArticleRepository } from "../repositories/r2";
 
 interface RssFeedSource {
   url: string;
   name: string;
   country: "JP" | "US" | "EU";
-  category: "ai" | "dx" | "startup" | "general_tech";
+  category: "ai" | "dx" | "startup" | "general_tech" | "food";
   language: "ja" | "en";
 }
 
@@ -162,6 +162,22 @@ const RSS_SOURCES: RssFeedSource[] = [
     country: "EU",
     category: "startup",
     language: "en",
+  },
+
+  // Food
+  {
+    url: "https://shokuhin.net/feed/",
+    name: "shokuhin_news",
+    country: "JP",
+    category: "food",
+    language: "ja",
+  },
+  {
+    url: "https://www.ssnp.co.jp/feed/",
+    name: "ssnp_food_industry",
+    country: "JP",
+    category: "food",
+    language: "ja",
   },
 ];
 

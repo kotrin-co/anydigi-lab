@@ -10,7 +10,7 @@ interface ArticleData {
   sourceName: string;
   sourceUrl: string;
   sourceCountry: "JP" | "US" | "EU";
-  sourceCategory: "ai" | "dx" | "startup" | "general_tech";
+  sourceCategory: "ai" | "dx" | "startup" | "general_tech" | "food";
   language: "ja" | "en";
 }
 

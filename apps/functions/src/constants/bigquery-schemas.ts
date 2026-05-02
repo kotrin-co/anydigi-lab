@@ -127,4 +127,35 @@ export const SCHEMAS = {
       fields: ["channel_id", "video_id"],
     },
   },
+  REDDIT_POSTS: {
+    tableId: "reddit_posts",
+    schema: [
+      { name: "snapshot_date", type: "DATE", mode: "REQUIRED" },
+      { name: "post_id", type: "STRING", mode: "REQUIRED" },
+      { name: "subreddit", type: "STRING", mode: "REQUIRED" },
+      { name: "title", type: "STRING", mode: "REQUIRED" },
+      { name: "selftext", type: "STRING", mode: "NULLABLE" },
+      { name: "url", type: "STRING", mode: "NULLABLE" },
+      { name: "permalink", type: "STRING", mode: "NULLABLE" },
+      { name: "author", type: "STRING", mode: "NULLABLE" },
+      { name: "score", type: "INTEGER", mode: "NULLABLE" },
+      { name: "upvote_ratio", type: "FLOAT", mode: "NULLABLE" },
+      { name: "num_comments", type: "INTEGER", mode: "NULLABLE" },
+      { name: "flair", type: "STRING", mode: "NULLABLE" },
+      { name: "over_18", type: "BOOLEAN", mode: "NULLABLE" },
+      { name: "category", type: "STRING", mode: "NULLABLE" },
+      { name: "language", type: "STRING", mode: "NULLABLE" },
+      { name: "posted_at", type: "TIMESTAMP", mode: "NULLABLE" },
+      { name: "stickied", type: "BOOLEAN", mode: "NULLABLE" },
+      { name: "created_at", type: "TIMESTAMP", mode: "NULLABLE" },
+    ],
+    partitioning: {
+      type: "DAY",
+      field: "snapshot_date",
+      expirationMs: "172800000", // 48h
+    },
+    clustering: {
+      fields: ["subreddit", "category"],
+    },
+  },
 };

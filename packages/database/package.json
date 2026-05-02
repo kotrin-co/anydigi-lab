@@ -8,7 +8,8 @@
     "./embedding": "./embedding.ts",
     "./schema/insights": "./schema/insights.ts",
     "./schema/trade": "./schema/trade.ts",
-    "./schema/users": "./schema/users.ts"
+    "./schema/users": "./schema/users.ts",
+    "./schema/needradar": "./schema/needradar.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",

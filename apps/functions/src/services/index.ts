@@ -6,3 +6,4 @@ export { YoutubeClient } from "./youtube/client";
 export { ArticleRssFeedService } from "./article-rss-feed-service";
 export { GoogleTrendRssService } from "./google-trend-rss-service";
 export { PopularVideosService } from "./popular-videos-service";
+export { RedditService } from "./reddit-service";

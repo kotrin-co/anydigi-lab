@@ -31,7 +31,7 @@ const navigation: NavItem[] = [
   { name: "Insights", href: "/insights", icon: Newspaper, public: false },
   { name: "Trade", href: "/trade", icon: LineChart, public: false },
   { name: "Portfolio", href: "/portfolio", icon: Wallet, public: false },
-  { name: "NeedRadar", href: "/needradar", icon: BarChart3, public: true },
+  { name: "NeedRadar", href: "/needradar", icon: BarChart3, public: false },
   { name: "Settings", href: "/settings", icon: Settings, public: false },
 ];
 
