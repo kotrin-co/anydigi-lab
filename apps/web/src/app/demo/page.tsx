@@ -33,7 +33,9 @@ async function getArticles() {
 }
 
 async function getTodayQuestionSet() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+  }).format(new Date());
   const [row] = await db
     .select({
       id: demoQuestionSets.id,
