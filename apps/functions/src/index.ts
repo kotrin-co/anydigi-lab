@@ -6,7 +6,6 @@ import {
   PopularVideosService,
   GoogleTrendRssService,
   ArticleRssFeedService,
-  RedditService,
 } from "./services";
 import { DuckdbTestService } from "./dev/duckdb-test";
 import { withMetrics } from "./utils";
@@ -27,7 +26,6 @@ export const dev = onRequest(
     }
 
     const service = new DuckdbTestService();
-    // const service = new RedditService();
     const result = await service.execute();
 
     response.json({ success: true, result });
@@ -85,19 +83,22 @@ export const articleRssFeedScheduler = onSchedule(
   },
 );
 
-export const redditScheduler = onSchedule(
-  {
-    schedule: "30 5 * * *",
-    region: "asia-northeast1",
-    memory: "512MiB",
-    timeoutSeconds: 180,
-    retryCount: 0,
-    timeZone: "Asia/Tokyo",
-  },
-  async () => {
-    await withMetrics("redditScheduler", async () => {
-      const service = new RedditService();
-      await service.execute();
-    });
-  },
-);
+/**
+ * GCP IPアドレスがブロックされるため、一旦停止
+ */
+// export const redditScheduler = onSchedule(
+//   {
+//     schedule: "30 5 * * *",
+//     region: "asia-northeast1",
+//     memory: "512MiB",
+//     timeoutSeconds: 180,
+//     retryCount: 0,
+//     timeZone: "Asia/Tokyo",
+//   },
+//   async () => {
+//     await withMetrics("redditScheduler", async () => {
+//       const service = new RedditService();
+//       await service.execute();
+//     });
+//   },
+// );

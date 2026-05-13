@@ -58,7 +58,16 @@ export class RedditService {
       },
     });
 
-    if (!res.ok) throw new Error(`Reddit API ${res.status}: ${url}`);
+    if (!res.ok) {
+      const body = await res.text();
+      logger.error(`Reddit API error on ${url}`, {
+        status: res.status,
+        body,
+      });
+      throw new Error(
+        `Reddit API ${res.status} on ${url}: ${body.slice(0, 200)}`,
+      );
+    }
 
     const json = (await res.json()) as {
       data: {

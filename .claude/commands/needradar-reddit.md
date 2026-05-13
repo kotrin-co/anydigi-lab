@@ -1,157 +1,356 @@
 ---
 name: needradar-reddit
-description: Reddit投稿（R2/Cube経由）からニーズを抽出してneedradar.needsに蓄積する
+description: ローカルから Reddit を直接フェッチしてニーズを抽出し needradar.needs に蓄積する（R2/Cube 経由しない）
 ---
 
-NeedRadar のニーズ収集（Reddit版）を実行します。
+NeedRadar のニーズ収集（Reddit 版）を実行します。
 
-## Step 1: Cube から投稿取得
+## なぜ R2/Cube を経由しないか
 
-`mcp__cube__query` で本日（または昨日フォールバック）の Reddit 投稿を取得する。R2 上の parquet を DuckDB 経由で読む。Cube モデル `reddit_posts` はすでに `post_id` で dedup 済み（最新 dt の行のみ採用）。
+Reddit はデータセンター IP（Cloud Functions 含む GCP/AWS/Azure）からの未認証 `.json` アクセスを 403 + HTML エラーページで弾く仕様。一方、住宅 ISP IP（あなたのローカル Mac）からは `User-Agent` を付けるだけで 200 + JSON が返ります。よって本コマンドは:
 
-```json
-{
-  "dimensions": [
-    "reddit_posts.post_id",
-    "reddit_posts.subreddit",
-    "reddit_posts.category",
-    "reddit_posts.language",
-    "reddit_posts.title",
-    "reddit_posts.selftext",
-    "reddit_posts.permalink"
-  ],
-  "measures": [
-    "reddit_posts.total_score",
-    "reddit_posts.avg_upvote_ratio",
-    "reddit_posts.total_comments"
-  ],
-  "filters": [
-    { "member": "reddit_posts.stickied", "operator": "equals", "values": ["false"] },
-    { "member": "reddit_posts.over_18", "operator": "equals", "values": ["false"] }
-  ],
-  "timeDimensions": [
-    { "dimension": "reddit_posts.snapshot_date", "dateRange": ["YYYY-MM-DD", "YYYY-MM-DD"] }
-  ],
-  "order": [["reddit_posts.total_score", "desc"]],
-  "limit": 1000
+- **収集はローカル `npx tsx` 直接 fetch**（Cloud Functions 廃止）
+- **R2 を経由しない**（書き手も読み手もこのスクリプト 1 箇所だけなので層を 1 つ削る）
+- **その場の JSON を Claude が直接読み、`needradar.needs` に upsert**
+
+`apps/functions/src/services/reddit-service.ts` および旧 `reddit_posts` cube model（Cube 自体 2026-05-13 廃止）は本コマンドからは参照しません。
+
+## Step 0: 前提
+
+- `.env` に `DATABASE_URL`（Neon）と `OPENAI_API_KEY`（embedding 用）が設定されている
+- 取得対象は `apps/functions/src/constants/reddit.ts` の `REDDIT_SOURCES`（12 subreddit、6 カテゴリ）
+- User-Agent / 6 秒間隔も同ファイルの定数を流用
+
+## Step 1: スクリプト生成 — 収集フェーズ
+
+ファイル名: `scripts/needradar-reddit-YYYY-MM-DD.ts`（YYYY-MM-DD は JST 本日）
+
+このスクリプトは **収集 → JSON 中間ファイル出力**まで担当する。
+Reddit fetch は約 1 分 12 秒（12 sub × 6 秒間隔）。
+
+```typescript
+import "dotenv/config";
+import * as fs from "node:fs/promises";
+import {
+  REDDIT_SOURCES,
+  REDDIT_BASE_URL,
+  REDDIT_USER_AGENT,
+  REDDIT_REQUEST_INTERVAL_MS,
+  type RedditSource,
+} from "../apps/functions/src/constants/reddit";
+
+type CollectedPost = {
+  post_id: string;
+  subreddit: string;
+  category: RedditSource["category"];
+  language: RedditSource["language"];
+  title: string;
+  selftext: string;
+  permalink: string;
+  url: string;
+  score: number;
+  upvote_ratio: number;
+  num_comments: number;
+  over_18: boolean;
+  stickied: boolean;
+  created_utc: number;
+};
+
+const TODAY = new Date().toISOString().slice(0, 10);
+const OUT = `tmp/reddit-${TODAY}.json`;
+const MIN_SCORE = 50;
+
+async function fetchSubreddit(source: RedditSource): Promise<CollectedPost[]> {
+  const sort = source.sort ?? "hot";
+  const limit = source.limit ?? 100;
+  const url = `${REDDIT_BASE_URL}/r/${source.subreddit}/${sort}.json?limit=${limit}`;
+
+  const res = await fetch(url, { headers: { "User-Agent": REDDIT_USER_AGENT } });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Reddit ${res.status} on ${url}: ${body.slice(0, 200)}`);
+  }
+  const json = (await res.json()) as { data: { children: Array<{ data: any }> } };
+
+  return json.data.children.map((c) => ({
+    post_id: c.data.id,
+    subreddit: source.subreddit,
+    category: source.category,
+    language: source.language,
+    title: c.data.title,
+    selftext: c.data.selftext ?? "",
+    permalink: `https://reddit.com${c.data.permalink}`,
+    url: c.data.url,
+    score: c.data.score,
+    upvote_ratio: c.data.upvote_ratio,
+    num_comments: c.data.num_comments,
+    over_18: c.data.over_18,
+    stickied: c.data.stickied,
+    created_utc: c.data.created_utc,
+  }));
 }
+
+async function main() {
+  console.log(`▶ collecting Reddit posts (${REDDIT_SOURCES.length} subreddits)`);
+  const all: CollectedPost[] = [];
+  const errors: string[] = [];
+
+  for (const source of REDDIT_SOURCES) {
+    try {
+      const posts = await fetchSubreddit(source);
+      all.push(...posts);
+      console.log(`  ✓ r/${source.subreddit}: ${posts.length}`);
+    } catch (e) {
+      console.error(`  ✗ r/${source.subreddit}: ${(e as Error).message}`);
+      errors.push(source.subreddit);
+    }
+    await new Promise((r) => setTimeout(r, REDDIT_REQUEST_INTERVAL_MS));
+  }
+
+  // タイトル長と score でフィルタ。stickied/over_18 は除外。
+  const filtered = all.filter(
+    (p) =>
+      !p.stickied &&
+      !p.over_18 &&
+      p.title.length >= 15 &&
+      p.title.length <= 300 &&
+      p.score >= MIN_SCORE
+  );
+
+  await fs.mkdir("tmp", { recursive: true });
+  await fs.writeFile(OUT, JSON.stringify(filtered, null, 2));
+
+  console.log(`\n— summary —`);
+  console.log(`  fetched: ${all.length}`);
+  console.log(`  filtered (score >= ${MIN_SCORE}): ${filtered.length}`);
+  console.log(`  errors: ${errors.length}${errors.length ? ` (${errors.join(", ")})` : ""}`);
+  console.log(`  output: ${OUT}`);
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
 ```
 
+実行: `npx tsx scripts/needradar-reddit-YYYY-MM-DD.ts`
+
 **注意:**
-- `dateRange` には JST 本日日付を絶対形式で2回（`"today"` 等の相対キーワードは使わない）
-- R2 lifecycle により `reddit/posts/` は 2 日保持（古いものは自動削除されるので、データ量は自然に絞られる）
-- 0 件の場合は `dateRange` を昨日〜本日に広げて再試行する
-- それでも 0 件なら「本日の対象投稿はありません」と表示して終了
-- `score`, `upvote_ratio`, `num_comments` は `total_*` measure として取得する（dedup 済みなので 1 行 1 投稿、合計 = その投稿の値）
-- `LENGTH(title) BETWEEN 15 AND 300` は Claude 側で取得後にフィルタする
-- カテゴリ6種（startup / ai / business / food / tech / japan）を全件分析する
+- 全 subreddit が失敗（403 連発）した場合は **IP/UA に問題あり**。`curl -A "AnyDigiLabBot/1.0 by /u/<ユーザー>" https://www.reddit.com/r/startups/hot.json` で住宅 IP から JSON が返るか確認
+- 一部失敗は ToS 順守の 6 秒間隔を守っている限り稀。エラーリスト `errors` にだけ載せて続行する設計
+- 出力 `tmp/reddit-YYYY-MM-DD.json` は Step 2 で読む。アーカイブ対象ではない（`.gitignore` に `tmp/` を入れておく）
 
-## Step 2: ニーズ抽出
+## Step 2: 中間 JSON を読み、ニーズを抽出
 
-取得した投稿（title + selftext）を読み、**ビジネスとして解決できる困りごと・不満・欲しいもの**を抽出する。
+Claude（あなた）が `tmp/reddit-YYYY-MM-DD.json` を Read ツールで読み、以下の判断基準で抽出する。**この時点ではまだ DB を触らない**。
 
-**判断基準（採用）:**
+**採用基準:**
 - 「How do I...」「Anyone else struggling with...」「I wish there was...」「Need help with...」など具体的な困りごと
 - 同じ subreddit 内で類似の不満が複数投稿に出ている
-- score / upvote_ratio が高い（コミュニティの共感が強い）
-- num_comments が多い（議論を呼んでいる ＝ 関心が高い）
+- score / upvote_ratio / num_comments が高い（コミュニティの共感・関心が強い）
 
-**判断基準（除外）:**
-- 自己宣伝・サクセスストーリー・収益報告（"I made $XX")
+**除外基準:**
+- 自己宣伝・サクセスストーリー・収益報告（"I made $XX"）
 - ミーム・ジョーク・雑談
 - 政治・宗教的意見
-- 既存SaaSの単純なレコメンド質問（"What's the best CRM?"）
-- AI/MLの研究論文紹介・モデルリリース報告（実装相談を除く）
+- 既存 SaaS の単純なレコメンド質問（"What's the best CRM?"）
+- AI/ML の研究論文紹介・モデルリリース報告（実装相談を除く）
 
 **vertical の分類:**
-- `food`: 食品・飲食・農業に関するニーズ（r/FoodBusiness, r/restauranteur 中心）
-- `manufacturing`: 製造・工場・現場に関するニーズ
-- `creative`: 制作・デザイン・コンテンツに関するニーズ
+- `food`: 食品・飲食・農業（r/FoodBusiness, r/restauranteur 中心）
+- `manufacturing`: 製造・工場・現場
+- `creative`: 制作・デザイン・コンテンツ
 - `general`: その他
 
 **region 推定:**
 - `subreddit` が `Japan` / `JapanLife` または `language = 'ja'` → `JP`
-- それ以外の英語圏 subreddit → `US`（欧州圏は現状 US に丸める）
+- それ以外の英語圏 → `US`（欧州圏は現状 US に丸める）
 
 ## Step 3: 既存ニーズの確認
 
-`mcp__neon__query` で現在の `needradar.needs` を全件取得して把握する。
+`mcp__neon__query` で取得:
 
 ```sql
-SELECT id, title, vertical, evidence_count, sources, created_at
+SELECT id, title, vertical, evidence_count, sources, regions
 FROM needradar.needs
 WHERE status = 'active'
 ORDER BY evidence_count DESC
 ```
 
-## Step 4: 結果を表示
-
-抽出したニーズを以下の形式で表示する:
+## Step 4: 抽出結果を画面表示
 
 ```
-## 新規ニーズ
+## 新規ニーズ候補
 
 ### [ニーズタイトル]
 - **要約:** [1-2文]
 - **vertical:** food / manufacturing / creative / general
-- **証拠投稿:** [score, upvotes率] "[title 抜粋]" (r/subreddit, region: JP/US)
+- **証拠投稿:** [score, upvote_ratio] "[title 抜粋]" (r/subreddit, region: JP/US)
 
 ## 既存ニーズへの証拠追加
 
 ### [既存ニーズタイトル]（id: X, 現在 evidence_count: Y）
-- **証拠投稿:** [score, upvotes率] "[title 抜粋]" (r/subreddit, region: JP/US)
+- **証拠投稿:** [score, upvote_ratio] "[title 抜粋]" (r/subreddit, region: JP/US)
 
 ## スキップ
 - [スキップ理由を一言]
 ```
 
-## Step 5: Neon に書き込む
+## Step 5: スクリプト生成 — 書き込みフェーズ
 
-Step 2-3 の結果を元に TypeScript スクリプトを生成して実行する。
+ファイル名: `scripts/needradar-reddit-write-YYYY-MM-DD.ts`
 
-スクリプトの構造:
-1. `generateEmbedding(title + "\n" + summary)` で各新規ニーズの embedding 生成
-2. `findSimilarNeeds(db, embedding, 0.80)` で既存ニーズと照合
-   - 類似あり → evidence_count++, sources 更新（重複追加しない、permalink を含める）, regions 更新（重複追加しない）
-   - 類似なし → INSERT（embedding, regions も一緒に保存）
-3. 既存ニーズへの証拠追加は evidence_count++, sources 更新, regions 更新のみ
+書き込み専用スクリプトを生成し実行する。**embedding 類似度 0.80 で dedup** する点は従来と同じ。
 
-スクリプトのファイル名: `scripts/needradar-collect-reddit-YYYY-MM-DD.ts`
-
-使用するインポート:
 ```typescript
 import "dotenv/config";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { sql } from "drizzle-orm";
-import { needs } from "@anydigi-lab/database/schema/needradar";
-import { generateEmbedding, findSimilarNeeds } from "@anydigi-lab/database/embedding";
+import {
+  generateEmbedding,
+  findSimilarNeeds,
+} from "@anydigi-lab/database/embedding";
+
+const client = neon(process.env.DATABASE_URL!);
+const sql = client;
+const db = drizzle(client);
+
+type NewNeed = {
+  title: string;
+  summary: string;
+  vertical: "food" | "manufacturing" | "creative" | "general";
+  region: "JP" | "US" | "EU";
+  source: string; // permalink
+};
+
+type EvidenceAdd = {
+  needId: number;
+  region: "JP" | "US" | "EU";
+  source: string; // permalink
+  note: string;
+};
+
+const NEW_NEEDS: NewNeed[] = [
+  // Step 4 で抽出したものをここに展開
+];
+
+const EVIDENCE: EvidenceAdd[] = [
+  // 既存ニーズに紐付ける証拠
+];
+
+async function upsertNew(n: NewNeed) {
+  const embedding = await generateEmbedding(`${n.title}\n${n.summary}`);
+  const similar = await findSimilarNeeds(db, embedding, 0.8);
+
+  if (similar.length > 0) {
+    // 類似あり: 既存に統合
+    const target = similar[0];
+    await sql.query(
+      `UPDATE needradar.needs
+         SET evidence_count = evidence_count + 1,
+             sources = CASE WHEN $2 = ANY(sources) THEN sources ELSE array_append(sources, $2) END,
+             regions = CASE WHEN $3 = ANY(regions) THEN regions ELSE array_append(regions, $3) END,
+             updated_at = NOW()
+       WHERE id = $1`,
+      [target.id, n.source, n.region]
+    );
+    return { merged: true, id: target.id, similarity: target.similarity };
+  }
+
+  // 新規: INSERT
+  const vectorStr = `[${embedding.join(",")}]`;
+  const inserted = (await sql.query(
+    `INSERT INTO needradar.needs (title, summary, vertical, evidence_count, sources, regions, embedding, status)
+     VALUES ($1, $2, $3, 1, ARRAY[$4]::text[], ARRAY[$5]::text[], $6::vector, 'active')
+     RETURNING id`,
+    [n.title, n.summary, n.vertical, n.source, n.region, vectorStr]
+  )) as Array<{ id: number }>;
+  return { merged: false, id: inserted[0].id };
+}
+
+async function addEvidence(e: EvidenceAdd) {
+  await sql.query(
+    `UPDATE needradar.needs
+       SET evidence_count = evidence_count + 1,
+           sources = CASE WHEN $2 = ANY(sources) THEN sources ELSE array_append(sources, $2) END,
+           regions = CASE WHEN $3 = ANY(regions) THEN regions ELSE array_append(regions, $3) END,
+           updated_at = NOW()
+     WHERE id = $1`,
+    [e.needId, e.source, e.region]
+  );
+}
+
+async function main() {
+  console.log(`▶ /needradar-reddit write phase`);
+  let newCount = 0;
+  let mergedCount = 0;
+
+  for (const n of NEW_NEEDS) {
+    const r = await upsertNew(n);
+    if (r.merged) {
+      mergedCount++;
+      console.log(`  → merged into #${r.id} (sim=${r.similarity?.toFixed(3)})`);
+    } else {
+      newCount++;
+      console.log(`  ✓ new #${r.id}: ${n.title}`);
+    }
+  }
+
+  for (const e of EVIDENCE) {
+    await addEvidence(e);
+    console.log(`  +1 evidence to #${e.needId}`);
+  }
+
+  const total = (await sql.query(
+    `SELECT COUNT(*)::int AS n FROM needradar.needs WHERE status = 'active'`
+  )) as Array<{ n: number }>;
+
+  console.log(`\n— summary —`);
+  console.log(`  new needs: ${newCount}`);
+  console.log(`  merged into existing: ${mergedCount}`);
+  console.log(`  evidence added: ${EVIDENCE.length}`);
+  console.log(`  active needs total: ${total[0].n}`);
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
 ```
 
-`sources` には `https://reddit.com{permalink}` を保存する（subreddit + post_id でも辿れるが、permalink が最も再現性が高い）。
+実行: `npx tsx scripts/needradar-reddit-write-YYYY-MM-DD.ts`
 
 ## Step 6: サマリー表示
 
 ```
-## needradar-reddit 実行完了（YYYY-MM-DD）
+## /needradar-reddit 完了（YYYY-MM-DD）
 
-- 取得投稿数: X件
-- 分析対象投稿数: X件（score>=10）
+- 取得投稿: X件
+- 分析対象（score >= 50）: X件
 - 新規ニーズ: X件
-- 証拠追加（既存）: X件
-- スキップ: X件
+- 既存ニーズへ統合（embedding sim >= 0.80）: X件
+- 既存ニーズへ証拠追加: X件
 - アクティブニーズ総数: X件
+- 失敗 subreddit: X件 (... または「なし」)
 ```
 
 ## Step 7: 成功時のアーカイブ
 
-サマリー表示まで成功した場合のみ、本実行で `scripts/` 配下に生成したスクリプトを `scripts/archives/YYYY-MM/`（YYYY-MM は実行日の年月）へ移動する。
+サマリー表示まで成功した場合のみ、本実行で `scripts/` 配下に生成した 2 本（`needradar-reddit-YYYY-MM-DD.ts` と `needradar-reddit-write-YYYY-MM-DD.ts`）を `scripts/archives/YYYY-MM/` へ移動する。
 
 ```bash
 mkdir -p scripts/archives/YYYY-MM
-mv scripts/<本実行で生成したファイル名> scripts/archives/YYYY-MM/
+mv scripts/needradar-reddit-YYYY-MM-DD.ts scripts/archives/YYYY-MM/
+mv scripts/needradar-reddit-write-YYYY-MM-DD.ts scripts/archives/YYYY-MM/
 ```
 
-- 失敗・中断した場合は移動しない（再実行で内容を確認・修正できるよう残す）
-- 複数ファイルを生成した場合は全て移動する
-- ディレクトリが既にあれば `mkdir -p` は no-op
+- 失敗・中断時は移動しない（再実行で確認・修正できるよう残す）
+- `tmp/reddit-YYYY-MM-DD.json` はアーカイブ対象外（`tmp/` は `.gitignore` で除外、不要なら手動削除）
+
+## 注意・運用
+
+- **Mac が起動していないと収集できない**。深夜 launchd で回す場合はスリープ防止設定が必要
+- **GCP 等のクラウドからは絶対に動かない**（403 + HTML が返る）。ローカル ISP IP のみ
+- 6 秒間隔は Reddit ToS 順守。短縮しない
+- すべての subreddit が連続 403 なら、`User-Agent` に実在 Reddit ユーザー名（`/u/<実在>`）を入れる、または OAuth 化を検討
+- YouTube は YouTube Data API v3（API key）なので IP ブロックの影響を受けず、別 skill `needradar-youtube` 側は従来どおり R2/Cube 経由を維持

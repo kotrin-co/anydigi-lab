@@ -1,146 +1,206 @@
 ---
 name: needradar-youtube
-description: YouTubeコメント（R2/Cube経由）からニーズを抽出してneedradar.needsに蓄積する
+description: YouTube コメント（R2 を直 DuckDB で読む）からニーズを抽出して needradar.needs に蓄積する
 ---
 
-NeedRadar のニーズ収集を実行します。
+NeedRadar のニーズ収集（YouTube 版）を実行します。
 
-## Step 1: Cube からコメント取得
+## Step 0: 前提
 
-`mcp__cube__query` で昨日の YouTube コメント（人気動画に紐づくもの）を取得する。R2 上の parquet を DuckDB 経由で読む。`video_comments` cube は `popular_videos` cube と `video_id` で join 済み。
+R2 上の parquet を読むのは `scripts/lib/duckdb-r2.ts` の `queryR2(sql)` を使う（`duckdb` npm の直叩き、Cube 経由しない）。R2 認証は `.env` の `R2_*` から自動で読まれる。
 
-```json
-{
-  "dimensions": [
-    "video_comments.comment_id",
-    "video_comments.video_id",
-    "video_comments.text",
-    "video_comments.like_count",
-    "popular_videos.region_code",
-    "popular_videos.category"
-  ],
-  "filters": [
-    { "member": "popular_videos.region_code", "operator": "equals", "values": ["JP", "US", "KR"] },
-    { "member": "popular_videos.category", "operator": "equals",
-      "values": ["ハウツーとスタイル", "科学と技術", "自動車と乗り物", "ペットと動物", "ブログ"] },
-    { "member": "video_comments.text_length", "operator": "gte", "values": ["15"] },
-    { "member": "video_comments.text_length", "operator": "lte", "values": ["500"] }
-  ],
-  "timeDimensions": [
-    { "dimension": "video_comments.snapshot_date", "dateRange": ["YYYY-MM-DD", "YYYY-MM-DD"] },
-    { "dimension": "popular_videos.snapshot_date", "dateRange": ["YYYY-MM-DD", "YYYY-MM-DD"] }
-  ],
-  "order": [["video_comments.like_count", "desc"]],
-  "limit": 5000
+Cube は廃止済み。`apps/cube/` は履歴のために残してあるが、起動する必要はない。
+
+## Step 1: 最新 dt を確認
+
+R2 上の `youtube/comments/dt=*/` と `youtube/popular_videos/dt=*/` の最新パーティション（UTC ベース）を先に確認する。
+
+その場で短い probe スクリプト（例: `scripts/_yt-probe.ts`）を生成して実行する。
+
+```typescript
+import { queryR2 } from "./lib/duckdb-r2";
+
+async function main() {
+  const dts = await queryR2<{ dt: string; n: bigint }>(`
+    SELECT regexp_extract(filename, 'dt=([0-9-]+)/', 1) AS dt, COUNT(*)::BIGINT AS n
+    FROM read_parquet('s3://anydigi-lab/youtube/comments/dt=*/*.parquet',
+      filename = true)
+    GROUP BY 1 ORDER BY 1 DESC LIMIT 3
+  `);
+  console.log("comments dts:", dts);
+
+  const dts2 = await queryR2<{ dt: string; n: bigint }>(`
+    SELECT regexp_extract(filename, 'dt=([0-9-]+)/', 1) AS dt, COUNT(*)::BIGINT AS n
+    FROM read_parquet('s3://anydigi-lab/youtube/popular_videos/dt=*/*.parquet',
+      filename = true)
+    GROUP BY 1 ORDER BY 1 DESC LIMIT 3
+  `);
+  console.log("popular_videos dts:", dts2);
 }
+main().catch((e) => { console.error(e); process.exit(1); });
+```
+
+通常は両者の最新 dt は同じ。違う場合は **両方に存在する最新の dt** を採用する。
+
+**重要：日付の決め方**
+
+- 収集パイプライン（GCP Cloud Functions）は UTC 基準で `dt=YYYY-MM-DD` のパーティションを書く
+- 日本時間の朝（JST 07-09 時 = UTC の前日 22-24 時）に本コマンドを動かすと、UTC では「前日」がまだ続いているため、**最新 dt は通常「JST 昨日 = UTC 同日 or 前日」**になる
+- ハードコードで「JST 昨日」を渡すと、最新 dt が UTC で 1 日ずれて 0 件になることがある（過去に再発）
+
+## Step 2: コメント取得
+
+最新 dt を Step 1 で確認したら、コメントを取得する probe スクリプト（例: `scripts/_yt-fetch.ts`）を生成して実行。
+
+```typescript
+import { queryR2 } from "./lib/duckdb-r2";
+
+const DT = "YYYY-MM-DD";  // Step 1 で確認した最新 dt
+
+async function main() {
+  const rows = await queryR2<{
+    text: string;
+    like_count: bigint;
+    region_code: string;
+    category: string;
+    title: string;
+    video_id: string;
+  }>(`
+    WITH vc AS (
+      SELECT video_id, text, like_count
+      FROM read_parquet('s3://anydigi-lab/youtube/comments/dt=${DT}/*.parquet')
+      WHERE LENGTH(text) BETWEEN 15 AND 500
+    ),
+    pv AS (
+      SELECT video_id, region_code,
+        basic_info.category AS category,
+        basic_info.title AS title
+      FROM read_parquet('s3://anydigi-lab/youtube/popular_videos/dt=${DT}/*.parquet')
+      WHERE region_code IN ('JP', 'US', 'KR')
+        AND basic_info.category IN ('ハウツーとスタイル', '科学と技術', '自動車と乗り物', 'ペットと動物', 'ブログ')
+    )
+    SELECT vc.text, vc.like_count, pv.region_code, pv.category, pv.title, vc.video_id
+    FROM vc JOIN pv ON vc.video_id = pv.video_id
+    ORDER BY vc.like_count DESC
+    LIMIT 200
+  `);
+  console.log("count:", rows.length);
+  for (const r of rows) {
+    const text = (r.text ?? "").replace(/\s+/g, " ").slice(0, 220);
+    console.log(`---\n[${r.region_code}/${r.category} ♥${r.like_count}] ${r.title?.slice(0, 60)}\n${text}`);
+  }
+}
+main().catch((e) => { console.error(e); process.exit(1); });
 ```
 
 **注意:**
-- `dateRange` には JST 昨日日付を絶対形式で2回（`"yesterday"` 等の相対キーワードは使わない）
-- `popular_videos` への join により region_code / category でフィルタできる
-- カテゴリ5種 × 国3種 を一括取得、`like_count` 降順で 5000 件まで（per-group top-N は厳密ではないが、グローバル上位 5000 件で十分）
-- region_code / category ごとの偏りは Claude 側で確認し、必要なら抽出時に各グループから明示的にサンプリングする
-- 結果は Read ツールで読み込んで分析する
-- コメントが0件の場合は「本日の対象コメントはありません」と表示して終了
 
-## Step 2: ニーズ抽出
+- `popular_videos` の parquet スキーマは `basic_info: STRUCT` / `statistics: STRUCT` がネスト構造になっている。`basic_info.category` のようにドット記法でアクセス
+- `category` フィールドはトレンドフィードのタイトル（"最新" など）ではなく、ジャンルカテゴリを指す（"ハウツーとスタイル"／"科学と技術" 等。日本語表記でも US/KR ともに同じ表記）
+- 同じ video_id が複数 region/category で popular に出てくるため、JOIN 後の行はテキスト重複しやすい。Step 3 で 1 件 1 件読むときに同一テキストは 1 度評価すれば十分
+- probe スクリプトは Step 5 のアーカイブ対象外。削除してよい
 
-取得したコメントを読み、**ビジネスとして解決できる困りごと・不満・欲しいもの**を抽出する。
+## Step 3: コメントを読み、ニーズを抽出
 
-**判断基準（採用）:**
-- 「〜が不便」「〜が欲しい」「〜が面倒」「〜できない」など具体的な困りごと
-- 同じ動画の複数コメントで同じ不満が出ている
-- like_count が高い（多くの人が共感している）
+Claude（あなた）が Step 2 の出力（`tmp/youtube-YYYY-MM-DD.txt` でもよい）を読み、以下の判断基準で抽出する。**この時点ではまだ DB を触らない**。
 
-**判断基準（除外）:**
-- 応援・感想・賞賛コメント
-- 特定の人・キャラクターへの言及
+**採用基準:**
+- 「How do I...」「Anyone else struggling with...」「I wish there was...」「困ってる」「どうすれば」など具体的な困りごと
+- 同じ video／category 内で類似の不満が複数コメントに出ている
+- like_count が高い（コミュニティの共感・関心が強い）
+
+**除外基準:**
+- リアクション・ジョーク・ジャンルファン同士の挨拶
+- 動画への賞賛・批判のみ（具体的問題提起なし）
 - 政治・宗教的意見
-- ゲームの攻略・UI要望（任天堂等への要望で中川が解けないもの）
+- スパム的なオファー・宣伝
 
 **vertical の分類:**
-- `food`: 食品・飲食・農業に関するニーズ
-- `manufacturing`: 製造・工場・現場に関するニーズ
-- `creative`: 制作・デザイン・コンテンツに関するニーズ
+- `food`: 食品・飲食・農業
+- `manufacturing`: 製造・工場・現場
+- `creative`: 制作・デザイン・コンテンツ
 - `general`: その他
 
-## Step 3: 既存ニーズの確認
+**region 推定:**
+- `region_code = 'JP'` → `JP`
+- それ以外 → `US`（KR は現状 US に丸める）
 
-`mcp__neon__query` で現在の `needradar.needs` を全件取得して把握する。
+YouTube トップコメントは一般にリアクション主体で need 信号が薄いことが多い。**抽出ゼロでも問題ない**。無理に need 化しないこと。
+
+## Step 4: 既存ニーズの確認
 
 ```sql
-SELECT id, title, vertical, evidence_count, sources, created_at
+SELECT id, title, vertical, evidence_count, sources, regions
 FROM needradar.needs
 WHERE status = 'active'
 ORDER BY evidence_count DESC
+LIMIT 50
 ```
 
-## Step 4: 結果を表示
+## Step 5: 書き込みスクリプト生成 & 実行
 
-抽出したニーズを以下の形式で表示する:
+ファイル名: `scripts/needradar-youtube-YYYY-MM-DD.ts`
 
-```
-## 新規ニーズ
+embedding 類似度 0.80 で dedup する（`@anydigi-lab/database/embedding` の `findSimilarNeeds`）。
 
-### [ニーズタイトル]
-- **要約:** [1-2文]
-- **vertical:** food / manufacturing / creative / general
-- **証拠コメント:** [like数] "[コメント抜粋]" (region: JP/US/KR)
-
-## 既存ニーズへの証拠追加
-
-### [既存ニーズタイトル]（id: X, 現在 evidence_count: Y）
-- **証拠コメント:** [like数] "[コメント抜粋]" (region: JP/US/KR)
-
-## スキップ
-- [スキップ理由を一言]
-```
-
-## Step 5: Neon に書き込む
-
-Step 2-3 の結果を元に TypeScript スクリプトを生成して実行する。
-
-スクリプトの構造:
-1. `generateEmbedding(title + "\n" + summary)` で各新規ニーズの embedding 生成
-2. `findSimilarNeeds(db, embedding, 0.80)` で既存ニーズと照合
-   - 類似あり → evidence_count++, sources 更新（重複追加しない）, regions 更新（重複追加しない）
-   - 類似なし → INSERT（embedding, regions も一緒に保存）
-3. 既存ニーズへの証拠追加は evidence_count++, sources 更新, regions 更新のみ
-
-スクリプトのファイル名: `scripts/needradar-collect-YYYY-MM-DD.ts`
-
-使用するインポート:
 ```typescript
 import "dotenv/config";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { sql } from "drizzle-orm";
-import { needs } from "@anydigi-lab/database/schema/needradar";
 import { generateEmbedding, findSimilarNeeds } from "@anydigi-lab/database/embedding";
+
+const client = neon(process.env.DATABASE_URL!);
+const sql = client;
+const db = drizzle(client);
+
+type NewNeed = {
+  title: string;
+  summary: string;
+  vertical: "food" | "manufacturing" | "creative" | "general";
+  region: "JP" | "US" | "EU";
+  source: string;
+};
+
+type EvidenceAdd = {
+  needId: number;
+  region: "JP" | "US" | "EU";
+  source: string;
+  note: string;
+};
+
+const NEW_NEEDS: NewNeed[] = [ /* Step 3 で抽出したもの。ゼロでも可 */ ];
+const EVIDENCE: EvidenceAdd[] = [ /* 既存 need に紐付ける証拠。ゼロでも可 */ ];
+
+// upsertNew / addEvidence は他コマンドと同じ実装
 ```
+
+実行: `npx tsx scripts/needradar-youtube-YYYY-MM-DD.ts`
 
 ## Step 6: サマリー表示
 
 ```
-## needradar-collect 実行完了（YYYY-MM-DD）
+## /needradar-youtube 完了（dt=YYYY-MM-DD）
 
-- 取得コメント数: X件
-- 分析コメント数: X件（like>=3）
-- 新規ニーズ: X件
-- 証拠追加（既存）: X件
-- スキップ: X件
-- アクティブニーズ総数: X件
+- 対象 dt: YYYY-MM-DD
+- 取得コメント: X 件（200 上限）
+- 新規ニーズ: X 件
+- 既存ニーズへ統合（embedding sim >= 0.80）: X 件
+- 既存ニーズへ証拠追加: X 件
+- アクティブニーズ総数: X 件
 ```
 
 ## Step 7: 成功時のアーカイブ
 
-サマリー表示まで成功した場合のみ、本実行で `scripts/` 配下に生成したスクリプト（`scripts/needradar-collect-YYYY-MM-DD.ts`）を `scripts/archives/YYYY-MM/`（YYYY-MM は実行日の年月）へ移動する。
-
 ```bash
 mkdir -p scripts/archives/YYYY-MM
-mv scripts/needradar-collect-YYYY-MM-DD.ts scripts/archives/YYYY-MM/
+mv scripts/needradar-youtube-YYYY-MM-DD.ts scripts/archives/YYYY-MM/
 ```
 
-- 失敗・中断した場合は移動しない（再実行で内容を確認・修正できるよう残す）
-- 複数ファイルを生成した場合は全て移動する
-- ディレクトリが既にあれば `mkdir -p` は no-op
+- 失敗・中断時は移動しない
+- probe スクリプト（`_yt-probe.ts` / `_yt-fetch.ts`）はアーカイブ対象外。削除してよい
+
+## 注意
+
+- YouTube トップコメントは need 信号が薄い（リアクション中心）。抽出ゼロを許容する設計にしている
+- Reddit と違い、YouTube は YouTube Data API v3（API key）経由で Cloud Functions が R2 に書き込む構造なので、本コマンドは「R2 から読む」のみ。fetch は走らせない
+- `category` をハウツー・科学技術・自動車・ペット・ブログに絞っているのは、エンタメ・音楽カテゴリだとリアクション率がさらに高くなるため

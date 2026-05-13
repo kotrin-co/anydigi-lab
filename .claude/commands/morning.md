@@ -10,9 +10,9 @@ description: 毎朝の日次実行をまとめて回す（lab-demo → insights 
 `lab-demo` → `insights` → `needs` の順で実行する。
 
 理由:
-1. **lab-demo が先**: `/demo` ページ（潜在顧客向け公開デモ）の本日分を最優先で揃える。Cube の `rss_articles` を読むだけで完結し、依存も軽い
-2. **insights が次**: 同じ `rss_articles` を読み込んでビジネスアイデアを抽出する。lab-demo と入力ソースが同じなので Cube のキャッシュが効きやすい
-3. **needs が最後**: Reddit / YouTube 側のデータ収集は時間がかかるため、影響範囲が独立している needs を最後に回す（前段が落ちても needs は走らせたい）
+1. **lab-demo が先**: `/demo` ページ（潜在顧客向け公開デモ）の本日分を最優先で揃える。R2 の rss/articles を `scripts/lib/duckdb-r2.ts` 経由で直接読むだけなので、依存も軽い
+2. **insights が次**: 同じ rss/articles を読み込んでビジネスアイデアを抽出する。lab-demo と入力ソースが同じなので DuckDB の R2 メタデータキャッシュが効きやすい
+3. **needs が最後**: Reddit / YouTube 側のデータ取得は時間がかかるため、影響範囲が独立している needs を最後に回す（前段が落ちても needs は走らせたい）
 
 ## Step 1: /lab-demo を実行
 
@@ -77,5 +77,7 @@ description: 毎朝の日次実行をまとめて回す（lab-demo → insights 
 
 - どれかが失敗しても、残りは必ず実行する（止めない）
 - 各コマンドの内部スクリプトは `scripts/` 配下に当日の日付付きで生成される
-- Cube が停止していたら最初に `cd apps/cube && docker compose up -d` で起動してから Step 1 を始める
+- R2 アクセスは `scripts/lib/duckdb-r2.ts` 経由（`duckdb` npm の直叩き）。**Cube は 2026-05-13 廃止**。`apps/cube/` は履歴のためだけに残してある、起動不要
 - Claude Max の 5 時間ローリング窓を考慮し、深夜〜早朝に launchd で実行する想定。日中の手動実行は避ける
+- **needradar-reddit はローカル Mac から Reddit に直接 fetch する**（Cloud Functions 経由しない）。Mac が起動していないと Step 3 の Reddit 部分はスキップされる
+- needradar-reddit は `scripts/needradar-reddit-YYYY-MM-DD.ts`（収集）と `scripts/needradar-reddit-write-YYYY-MM-DD.ts`（書き込み）の 2 本を生成する

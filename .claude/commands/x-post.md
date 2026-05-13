@@ -1,6 +1,6 @@
 ---
 name: x-post
-description: insightsの分析結果（R2/Cube経由）からX投稿を生成し、ファイル出力する
+description: insights の分析結果（R2 を直 DuckDB で読む）から X 投稿を生成し、ファイル出力する
 ---
 
 insights の分析結果をもとに、AnyDigi代表（中川さん）のX投稿を生成します。
@@ -12,37 +12,33 @@ insights の分析結果をもとに、AnyDigi代表（中川さん）のX投稿
 
 **単体で実行された場合のみ、以下を実行する:**
 
-### 1-1: 今日の記事を Cube から取得
+### 1-1: 今日の記事を R2 から直接取得
 
-`mcp__cube__query` で今日のRSS記事を取得する（R2 上の parquet を DuckDB 経由で読む）。
+`scripts/lib/duckdb-r2.ts` の `fetchRssArticles()` を使って probe スクリプト（例: `scripts/_fetch.ts`）を生成・実行する。Cube は廃止済み。
 
-```json
-{
-  "dimensions": [
-    "rss_articles.id",
-    "rss_articles.url",
-    "rss_articles.title",
-    "rss_articles.content",
-    "rss_articles.source_name",
-    "rss_articles.source_category",
-    "rss_articles.published_at"
-  ],
-  "filters": [
-    { "member": "rss_articles.source_category", "operator": "equals", "values": ["ai", "dx"] }
-  ],
-  "timeDimensions": [
-    { "dimension": "rss_articles.published_at", "dateRange": ["YYYY-MM-DD", "YYYY-MM-DD"] }
-  ],
-  "order": [["rss_articles.published_at", "desc"]],
-  "limit": 30
+```typescript
+import { fetchRssArticles } from "./lib/duckdb-r2";
+
+async function main() {
+  const arts = await fetchRssArticles({
+    dt: "YYYY-MM-DD",      // R2 上の最新 dt（UTC ベース）
+    categories: ["ai", "dx"],
+    limit: 30,
+  });
+  console.log(`COUNT=${arts.length}`);
+  for (const a of arts) {
+    const preview = (a.content ?? "").replace(/\s+/g, " ").slice(0, 280);
+    console.log(`---\nID:${a.id}\nTITLE:${a.title}\nURL:${a.url}\nBODY:${preview}`);
+  }
 }
+main().catch((e) => { console.error(e); process.exit(1); });
 ```
 
 **注意:**
-- `dateRange` には JST 本日日付を絶対形式で（`"today"` 等の相対指定は DuckDB に直渡しされるため避ける）
-- Cube デフォルト timezone は JST（MCP server 側で `Asia/Tokyo` に固定済み）
+- `dt` は **R2 上の最新パーティション**（UTC ベース）を使う。JST 早朝に動かすと UTC ではまだ前日なので、`dt = 「JST 昨日」` が最新になりやすい
+- probe スクリプトは生成・実行が終わったら削除してよい（アーカイブ対象外）
 
-記事が0件の場合は Cube 経由ではなく Neon の `insights.articles` から直近3日分を取得してフォールバックする。
+記事が 0 件の場合は R2 ではなく Neon の `insights.articles` から直近 3 日分を取得してフォールバックする。
 
 ### 1-2: アクティブなアイデアを Neon から取得
 
@@ -94,21 +90,43 @@ Step 1 のデータと Step 2 の曜日をもとに、以下の投稿を作成�
 ### 各投稿の作成ルール
 
 #### 朝の挨拶（#1 / 8:30）
-- **社長としての今日1日の決意の言葉**。短く、深く、簡潔に
+- **経営者の心掛けを一言で語る**ポスト。短く・深く・簡潔に
 - 「今日は何の日」「記念日」「雑学」ネタは使わない（軽くなりすぎるため）
-- 経営者として大事にしている哲学・信念を、その日の自分の動きに落とし込んで言い切る
+- ニュースネタや時事に寄せない。経営者として日頃大事にしている **心掛け・原則・対比** をその場の言葉で語る
+- **「経営者は X より Y」「答えを出すより、問いを切らさない」のような対比・言い換え型が刺さる**
 - 抽象論で終わらせず、「今日は◯◯する」という具体の宣言を必ず1つ入れる
-- 全体で5〜7行程度にとどめる。短いほど刺さる
+- 全体で **4〜6 行**にとどめる。短いほど刺さる
 - 構成例:
   1. 「おはようございます。」
-  2. 経営・仕事観の一言（自分が大事にしている考え）
-  3. それを今日どう動きに変えるか（具体宣言）
+  2. 経営者の心掛けを一言（対比・言い換え型推奨）
+  3. その心掛けを今日どう動きに変えるか（具体宣言）
   4. 「本日も１日よろしくお願いします！」
 - 力まない、説教にしない、当たり前のことを当たり前に言い切る
 - **末尾に「本日も１日よろしくお願いします！」を必ず入れる**
 - 最後に必ず以下2つのハッシュタグを入れる（1行ずつ改行）:
   - `#企業公式が朝の挨拶を言い合う`
   - `#企業公式相互フォロー`
+
+**良い例（経営者の心掛け型）:**
+
+```
+おはようございます。
+
+経営者の仕事は、答えを出すことより、問いを切らさないこと。
+答えはAIに聞ける時代、問いだけは現場からしか拾えません。
+
+今日は、最近声を聞けていない取引先1社に、5分だけ電話します。
+
+本日も１日よろしくお願いします！
+
+#企業公式が朝の挨拶を言い合う
+#企業公式相互フォロー
+```
+
+**避けるパターン:**
+- 今日のニュースや時事ネタを朝の挨拶に持ってくる（注目記事 #3 や雑感 #4 でやる仕事）
+- 「〜と思います」を3回以上重ねる（語尾を変える）
+- 7行を超えて長くなる（読み手の手を止められない）
 
 #### 夕方の挨拶（#2 / 17:30）
 - 温かみのある「お疲れ様」。がんばった人をねぎらう気持ちで

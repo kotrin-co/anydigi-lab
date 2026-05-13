@@ -6,4 +6,7 @@ export { YoutubeClient } from "./youtube/client";
 export { ArticleRssFeedService } from "./article-rss-feed-service";
 export { GoogleTrendRssService } from "./google-trend-rss-service";
 export { PopularVideosService } from "./popular-videos-service";
-export { RedditService } from "./reddit-service";
+// RedditService は GCP IP がブロックされるため Functions では使えない。
+// ローカル Mac から直接フェッチする形に移行（.claude/commands/needradar-reddit.md 参照）。
+// ファイルは将来の OAuth 移行検討用に残してある。
+// export { RedditService } from "./reddit-service";

@@ -54,3 +54,6 @@ next-env.d.ts
 
 # script archives (one-shot scripts kept locally)
 scripts/archives/
+
+# local intermediate data (e.g. needradar reddit raw fetch)
+tmp/

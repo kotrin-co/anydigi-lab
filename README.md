@@ -34,3 +34,15 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+エンジニアの仕事は基本 0 か 1 で答えが出る。
+
+マネジメントは違う。人間という不確定要素を扱うので、0 か 1 の定義そのものを自分で決める必要があるし、0.4 が最適解、なんてこともある。
+
+ ▎ 「締切は守った、でもメンバーは疲弊した」を、組織として 0 と 1 のどっちに置くか、誰も教えてくれない。  
+ ▎  
+ ▎ ここに AI エージェントが「絶対サボらない優秀な部下」として入ってきたとき、マネージャーに残る仕事は何か。  
+ ▎  
+ ▎ 抽象世界で 0 と 1 を定義する人、になるんじゃないかと思っています。  
+ ▎  
+ ▎ もしかするとそれは、「マネージャー」とは呼ばれない別の職種かもしれない

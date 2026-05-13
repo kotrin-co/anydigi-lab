@@ -12,14 +12,21 @@ description: /demo ページの今日分の質問セットと32パターンレ�
 - ユニーク制約: `(question_set_id, topic_index, role, depth)`
 - フロントは ISR (revalidate=3600) で `question_sets` を読み、ユーザー選択時に Server Action で `reports` を 1 行取りつつ `view_count` を +1
 
+## Step 0: 前提
+
+R2 上の parquet を読むのは `scripts/lib/duckdb-r2.ts` の `fetchRssArticles()` を使う（`duckdb` npm の直叩き、Cube 経由しない）。R2 認証は `.env` の `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` から自動で読まれる。
+
+Cube は廃止済み。`apps/cube/` は履歴のために残してあるが、起動する必要はない。
+
 ## Step 1: 既存の question_set を確認
 
 `mcp__neon__query` で本日分が既に生成済みかをチェック。
 
 ```sql
-SELECT id, generated_for_date, jsonb_array_length(topics) AS topic_count
-FROM demo.question_sets
-WHERE generated_for_date = CURRENT_DATE
+SELECT id, generated_for_date::text, jsonb_array_length(topics) AS topic_count,
+  (SELECT COUNT(*) FROM demo.reports WHERE question_set_id = qs.id) AS report_count
+FROM demo.question_sets qs
+WHERE generated_for_date = (NOW() AT TIME ZONE 'Asia/Tokyo')::date
 ```
 
 - 既に存在し、かつ `demo.reports` に紐付くレポートが 32 件揃っている場合 → 「本日分は生成済みです」と表示して終了
@@ -28,34 +35,31 @@ WHERE generated_for_date = CURRENT_DATE
 
 ## Step 2: 本日の RSS 記事を取得
 
-`mcp__cube__query` で `rss_articles` を取得（DuckDB 経由 R2 parquet 読み）。
+その場で短い probe スクリプト（例: `scripts/_fetch.ts`）を生成して実行する。
 
-```json
-{
-  "dimensions": [
-    "rss_articles.id",
-    "rss_articles.title",
-    "rss_articles.content",
-    "rss_articles.source_name",
-    "rss_articles.source_category",
-    "rss_articles.url",
-    "rss_articles.published_at"
-  ],
-  "filters": [
-    { "member": "rss_articles.source_category", "operator": "equals", "values": ["ai", "dx"] }
-  ],
-  "timeDimensions": [
-    { "dimension": "rss_articles.published_at", "dateRange": ["YYYY-MM-DD", "YYYY-MM-DD"] }
-  ],
-  "order": [["rss_articles.published_at", "desc"]],
-  "limit": 100
+```typescript
+import { fetchRssArticles } from "./lib/duckdb-r2";
+
+async function main() {
+  const arts = await fetchRssArticles({
+    dt: "YYYY-MM-DD",      // 当日 UTC の dt（R2 のパーティションキー）
+    categories: ["ai", "dx"],
+    limit: 100,
+  });
+  console.log(`COUNT=${arts.length}`);
+  for (const a of arts) {
+    const preview = (a.content ?? "").replace(/\s+/g, " ").slice(0, 280);
+    console.log(`---\nID:${a.id}\nCAT:${a.source_category}\nSRC:${a.source_name}\nPUB:${a.published_at}\nTITLE:${a.title}\nURL:${a.url}\nBODY:${preview}`);
+  }
 }
+main().catch((e) => { console.error(e); process.exit(1); });
 ```
 
-注意:
-- `dateRange` は JST 本日日付の絶対形式
-- 0 件のときは前日にフォールバック
+`dt` は **R2 上の最新パーティション**（UTC ベース）を使う。JST 早朝に動かすと UTC ではまだ前日なので、`dt = 「JST 昨日」` が最新になりやすい。
+
+- 0 件のときは前日の dt にフォールバック
 - それでも 0 件なら「本日の対象記事はありません」と表示して終了
+- probe スクリプトは Step 8 のアーカイブ対象外。Step 7 のスクリプト生成が終わったら削除してよい
 
 ## Step 3: Q1 トピック 4 件と intro を生成
 
@@ -98,7 +102,7 @@ RETURNING id
 
 ## Step 5: 32 パターンのレポートを生成
 
-トピック 4 × 立場 4 × 深さ 2 = 32 レポート。**1 トピックあたり 1 プロンプトで 8 パターン (4 role × 2 depth) をまとめて JSON で返させる**ことで LLM 呼び出しを 4 回に抑える。
+トピック 4 × 立場 4 × 深さ 2 = 32 レポート。Claude（あなた）が会話内で全 32 件を執筆する。LLM への外部呼び出しは不要（Claude Code 自体が分析者）。
 
 ### Role 定義
 
@@ -150,53 +154,14 @@ RETURNING id
 今日できる 1〜2 文の打ち手。
 ```
 
-### プロンプト雛形（1 トピック分）
+### 共通ルール
 
-```
-以下の RSS 記事 N 件をベースに、トピック「{topic.label}」について
-4 つの立場 × 2 つの深さ = 8 つのレポートを生成してください。
-
-# 立場
-- executive: 経営者・役員視点（戦略・投資判断・全社リスク）
-- manager: 現場マネージャー視点（チーム運用・実装・KPI）
-- planner: 企画・新規事業視点（市場機会・事業設計）
-- solo: 個人事業主・1 人会社視点（小さく始める実践)
-
-# 深さとフレーム
-- digest: 200〜300 字、以下の構成
-    【3行サマリー】<3行>
-    【あなたへの一手】<1〜2文>
-- detailed: 600〜900 字、以下の構成
-    【3行サマリー】<3行>
-    【背景と動き】<段落>
-    【あなたへの示唆】<2〜3点>
-    【今日できる一手】<1〜2個、具体的アクション>
-
-# 共通ルール
 - title は 16〜28 字程度、立場が一目で分かるように
 - 記事の固有名詞・数字は最初の 3 行サマリーに必ず入れる
 - 推測の事実は断定しない（「〜と報じられています」「〜と考えられます」）
 - 専門用語は最小限、潜在顧客（非エンジニア）が読める日本語
 - 「今日できる一手」は抽象的提案を避け、明日の朝までに着手できる粒度で書く
 - セクション見出し【】は全角括弧、本文と空行で区切る
-
-# 入力記事
-{記事1: title + content（要約）}
-{記事2: title + content（要約）}
-...
-
-# 出力 (JSON only)
-{
-  "reports": [
-    { "role": "executive", "depth": "digest",   "title": "...", "content": "【3行サマリー】..." },
-    { "role": "executive", "depth": "detailed", "title": "...", "content": "【3行サマリー】..." },
-    { "role": "manager",   "depth": "digest",   "title": "...", "content": "..." },
-    ...8件
-  ]
-}
-```
-
-このプロンプトをトピック 4 つそれぞれに対して走らせ、合計 32 レポートを得る。
 
 ## Step 6: reports を Neon に保存
 
@@ -220,13 +185,28 @@ Step 4〜6 を実行する TypeScript スクリプトをその場で生成する
 
 ファイル名: `scripts/lab-demo-YYYY-MM-DD.ts`
 
-インポート例:
 ```typescript
 import "dotenv/config";
 import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
-import { demoQuestionSets, demoReports } from "@anydigi-lab/database/schema/demo";
-import { sql } from "drizzle-orm";
+
+const sql = neon(process.env.DATABASE_URL!);
+const TODAY = "YYYY-MM-DD";
+const INTRO = "...";
+const TOPICS = [ /* 4 件 */ ];
+const REPORTS = [ /* 32 件 */ ];
+
+async function main() {
+  const upserted = await sql.query(
+    `INSERT INTO demo.question_sets (generated_for_date, topics, intro, status)
+     VALUES ($1, $2::jsonb, $3, 'active')
+     ON CONFLICT (generated_for_date) DO UPDATE
+       SET topics = EXCLUDED.topics, intro = EXCLUDED.intro
+     RETURNING id`,
+    [TODAY, JSON.stringify(TOPICS), INTRO]
+  );
+  const questionSetId = (upserted as Array<{ id: number }>)[0].id;
+  // ... reports loop with ON CONFLICT DO UPDATE
+}
 ```
 
 実行: `npx tsx scripts/lab-demo-YYYY-MM-DD.ts`
@@ -307,9 +287,8 @@ mv scripts/lab-demo-YYYY-MM-DD.ts scripts/archives/YYYY-MM/
 ```
 
 - 失敗・中断した場合は移動しない（再実行で内容を確認・修正できるよう残す）
-- ディレクトリが既にあれば `mkdir -p` は no-op
-- 複数ファイルを生成した場合は全て移動する
 - 投稿ファイル（`.claude/outputs/posts/YYYY-MM-DD.md`）はアーカイブ対象外（`/x-post` がこの後追記する）
+- Step 2 で作った probe スクリプトはアーカイブ対象外。削除してよい
 
 ## 注意
 
