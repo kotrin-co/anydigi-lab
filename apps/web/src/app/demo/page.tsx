@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { db } from "@anydigi-lab/database/db";
 import { articles } from "@anydigi-lab/database/schema/insights";
 import {
@@ -9,6 +10,12 @@ import { ChatBot } from "./chat-bot";
 import { InfoPanels } from "./info-panels";
 
 export const revalidate = 3600;
+
+export const metadata: Metadata = {
+  title: "今日のAIアナリスト | AnyDigi Lab",
+  description:
+    "毎日の AI ニュースを 4 テーマに絞り、立場別に AI が解説・分析します。",
+};
 
 const FALLBACK_TOPICS: DemoTopic[] = [
   { label: "AI 規制と企業対応", description: "ガバナンス・リスク・各国動向" },
@@ -41,11 +48,19 @@ async function getTodayQuestionSet() {
       id: demoQuestionSets.id,
       topics: demoQuestionSets.topics,
       intro: demoQuestionSets.intro,
+      generatedForDate: demoQuestionSets.generatedForDate,
     })
     .from(demoQuestionSets)
     .where(eq(demoQuestionSets.generatedForDate, today))
     .limit(1);
   return row ?? null;
+}
+
+function formatLastUpdated(d: string | null): string | null {
+  if (!d) return null;
+  const [y, m, day] = d.split("-").map((s) => Number(s));
+  if (!y || !m || !day) return null;
+  return `${y}年${m}月${day}日`;
 }
 
 function formatDateTime(d: Date | null) {
@@ -68,17 +83,28 @@ export default async function DemoPage() {
   const topics = questionSet?.topics ?? FALLBACK_TOPICS;
   const questionSetId = questionSet?.id ?? null;
   const intro = questionSet?.intro ?? null;
+  const lastUpdated = formatLastUpdated(questionSet?.generatedForDate ?? null);
 
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8 space-y-8">
       <div className="space-y-3">
-        <div className="space-y-1">
-          <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-emerald-600">
-            AnyDigi Lab
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-emerald-600">
+              AnyDigi Lab
+            </div>
+            <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-foreground">
+              今日のAIアナリスト
+            </h1>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              毎日のニュースを 4 テーマに絞り、立場別に AI が解説・分析します
+            </p>
           </div>
-          <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-foreground">
-            Live AI Pipeline
-          </h1>
+          {lastUpdated && (
+            <div className="shrink-0 pt-1 text-xs text-muted-foreground tabular-nums">
+              最終更新日 {lastUpdated}
+            </div>
+          )}
         </div>
         <InfoPanels />
       </div>

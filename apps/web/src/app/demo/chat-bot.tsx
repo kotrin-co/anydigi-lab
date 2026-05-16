@@ -21,9 +21,11 @@ const Q2_OPTIONS: Q2Option[] = [
   { value: "solo", label: "個人事業主・1人会社", sublabel: "1人で回す視点" },
 ];
 
+// DB 上の depth カラム値は 'digest' / 'detailed' のまま据え置き。
+// 'digest' を「わかりやすく解説」、'detailed' を「分析レポート」として再解釈する。
 const Q3_OPTIONS: Q3Option[] = [
-  { value: "digest", label: "ざっくり要約", sublabel: "30秒で読める結論ベース" },
-  { value: "detailed", label: "じっくり分析", sublabel: "背景・示唆まで深掘り" },
+  { value: "digest", label: "わかりやすく解説", sublabel: "専門用語ゼロ・例え話で" },
+  { value: "detailed", label: "分析レポートを見る", sublabel: "業界感度ある人向け・深掘り" },
 ];
 
 type Step = "q1" | "q2" | "q3" | "loading" | "result";
@@ -52,7 +54,6 @@ export function ChatBot({ questionSetId, topics, intro }: Props) {
   const [, startTransition] = useTransition();
   const [overlayDone, setOverlayDone] = useState(false);
   const [replayOpen, setReplayOpen] = useState(false);
-  const [hasShownAnimation, setHasShownAnimation] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const analysisResultRef = useRef<FetchReportResult | null>(null);
   const overlayDoneRef = useRef(false);
@@ -113,7 +114,7 @@ export function ChatBot({ questionSetId, topics, intro }: Props) {
     pushUser(label);
     setSelection((s) => ({ ...s, role }));
     setTimeout(() => {
-      pushBot("最後に、レポートの深さを選んでください。");
+      pushBot("最後に、どちらの読み方がいいですか？");
       setStep("q3");
     }, 350);
   };
@@ -122,18 +123,10 @@ export function ChatBot({ questionSetId, topics, intro }: Props) {
     pushUser(label);
     setSelection((s) => ({ ...s, depth }));
     setStep("loading");
-    const skipOverlay = hasShownAnimation;
     analysisResultRef.current = null;
     fetchPendingRef.current = true;
-    setShowTypingIndicator(false);
-    setOverlayDoneSync(skipOverlay);
-    setTimeout(() => {
-      pushBot(
-        skipOverlay
-          ? "分析中です…少々お待ちください。"
-          : "分析中です…裏側の仕組みをご覧ください。"
-      );
-    }, 250);
+    setShowTypingIndicator(true);
+    setOverlayDoneSync(true);
 
     if (questionSetId === null || selection.topicIndex === undefined || selection.role === undefined) {
       setTimeout(() => {
@@ -155,12 +148,6 @@ export function ChatBot({ questionSetId, topics, intro }: Props) {
       fetchPendingRef.current = false;
       tryFinalize();
     });
-  };
-
-  const handleOverlayComplete = () => {
-    setHasShownAnimation(true);
-    setOverlayDoneSync(true);
-    tryFinalize();
   };
 
   const reset = () => {
@@ -205,12 +192,6 @@ export function ChatBot({ questionSetId, topics, intro }: Props) {
       </div>
 
       <AnimatePresence>
-        {step === "loading" && !overlayDone && (
-          <AnalysisOverlay
-            onComplete={handleOverlayComplete}
-            onSkip={handleOverlayComplete}
-          />
-        )}
         {replayOpen && (
           <AnalysisOverlay
             onComplete={() => setReplayOpen(false)}
@@ -279,24 +260,23 @@ export function ChatBot({ questionSetId, topics, intro }: Props) {
   );
 }
 
-function initialBubbles(intro: string | null): Bubble[] {
+function initialBubbles(_intro: string | null): Bubble[] {
   const base: Bubble[] = [
     {
       kind: "bot",
       id: "b-init-1",
-      text: "こんにちは。LaBot です。",
+      text: "こんにちは。AIアナリストの LaBot です。",
     },
     {
       kind: "bot",
       id: "b-init-2",
       text:
-        intro ??
-        "今日の RSS 記事を読み終えました。3 つの質問でレポートをお届けします。",
+        "毎日の数あるニュースから 4 テーマに絞って、見る人のポジション別に「わかりやすく解説」「分析する」の 2 つの視点で AI がまとめます。",
     },
     {
       kind: "bot",
       id: "b-init-3",
-      text: "まず、どのテーマに興味がありますか？",
+      text: "どのニュースが気になりますか？",
     },
   ];
   return base;

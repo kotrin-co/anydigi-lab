@@ -1,18 +1,19 @@
 ---
 name: morning
-description: 毎朝の日次実行をまとめて回す（lab-demo → insights → needs）
+description: 毎朝の日次実行をまとめて回す（lab-demo → insights → needs → x-post）
 ---
 
 毎朝の AI 分析パイプラインをまとめて実行します。
 
 ## 実行順序
 
-`lab-demo` → `insights` → `needs` の順で実行する。
+`lab-demo` → `insights` → `needs` → `x-post` の順で実行する。
 
 理由:
 1. **lab-demo が先**: `/demo` ページ（潜在顧客向け公開デモ）の本日分を最優先で揃える。R2 の rss/articles を `scripts/lib/duckdb-r2.ts` 経由で直接読むだけなので、依存も軽い
 2. **insights が次**: 同じ rss/articles を読み込んでビジネスアイデアを抽出する。lab-demo と入力ソースが同じなので DuckDB の R2 メタデータキャッシュが効きやすい
-3. **needs が最後**: Reddit / YouTube 側のデータ取得は時間がかかるため、影響範囲が独立している needs を最後に回す（前段が落ちても needs は走らせたい）
+3. **needs が三番目**: Reddit / YouTube 側のデータ取得は時間がかかるため、影響範囲が独立している needs を後ろに回す（前段が落ちても needs は走らせたい）
+4. **x-post が最後**: lab-demo の intro / insights のスコア上位アイデア / needs の動いたニーズを「自分発信フック」枠の素材として使うため、3 つすべてが終わってから走らせる
 
 ## Step 1: /lab-demo を実行
 
@@ -44,9 +45,23 @@ description: 毎朝の日次実行をまとめて回す（lab-demo → insights 
 - Reddit / YouTube それぞれの新規ニーズ数・証拠追加数
 - アクティブニーズ総数
 
-## Step 4: 朝のまとめサマリー
+## Step 4: /x-post を実行
 
-3 つすべての実行が終わったら、下記を 1 つのブロックで表示する:
+`.claude/commands/x-post.md` の手順を **そのまま全部** 実行する。
+
+連続実行時の挙動:
+- x-post 側の Step 1-4（ニュース）は朝の pipeline で取得済みの記事一覧をそのまま使う（probe スクリプトは生成しない）
+- 自分発信フック枠（Step 1-5）は lab-demo の `question_set_id` / intro / insights のスコア上位アイデア / needs の直近動いたニーズをそのまま素材化する
+
+完了後、下記をこの会話コンテキストに保持する:
+- 出力先パス（`.claude/outputs/posts/YYYY-MM-DD.md`）
+- 集めたネタの件数（カテゴリ別）
+
+失敗した場合は、失敗内容を表示してから **Step 5 のサマリー** に進む（止めない）。
+
+## Step 5: 朝のまとめサマリー
+
+4 つすべての実行が終わったら、下記を 1 つのブロックで表示する:
 
 ```
 ## 朝の日次パイプライン 完了（YYYY-MM-DD）
@@ -67,6 +82,10 @@ description: 毎朝の日次実行をまとめて回す（lab-demo → insights 
 - Reddit  新規 X / 証拠 X
 - YouTube 新規 X / 証拠 X
 - アクティブニーズ総数: X 件
+
+### x-post
+- 出力先: .claude/outputs/posts/YYYY-MM-DD.md
+- 集めたネタ: 天気 ◯ / Trends X / 何の日 X / ニュース X / 経済 X / 日本独自 X / 自分発信 X / 業界誌 X
 
 ### 失敗・要確認
 - (なければ「なし」)
