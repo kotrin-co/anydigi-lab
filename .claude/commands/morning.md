@@ -1,19 +1,20 @@
 ---
 name: morning
-description: 毎朝の日次実行をまとめて回す（lab-demo → insights → needs → x-post）
+description: 毎朝の日次実行をまとめて回す（lab-demo → insights → hp → needs → x-post）
 ---
 
 毎朝の AI 分析パイプラインをまとめて実行します。
 
 ## 実行順序
 
-`lab-demo` → `insights` → `needs` → `x-post` の順で実行する。
+`lab-demo` → `insights` → `hp` → `needs` → `x-post` の順で実行する。
 
 理由:
 1. **lab-demo が先**: `/demo` ページ（潜在顧客向け公開デモ）の本日分を最優先で揃える。R2 の rss/articles を `scripts/lib/duckdb-r2.ts` 経由で直接読むだけなので、依存も軽い
 2. **insights が次**: 同じ rss/articles を読み込んでビジネスアイデアを抽出する。lab-demo と入力ソースが同じなので DuckDB の R2 メタデータキャッシュが効きやすい
-3. **needs が三番目**: Reddit / YouTube 側のデータ取得は時間がかかるため、影響範囲が独立している needs を後ろに回す（前段が落ちても needs は走らせたい）
-4. **x-post が最後**: lab-demo の intro / insights のスコア上位アイデア / needs の動いたニーズを「自分発信フック」枠の素材として使うため、3 つすべてが終わってから走らせる
+3. **hp が三番目**: AnyDigi HP の前日 GA4 データを BigQuery 経由で取って Neon に蓄積。R2/RSS と独立した経路（bq MCP）なので、insights が落ちても影響を受けない
+4. **needs が四番目**: Reddit / YouTube 側のデータ取得は時間がかかるため、影響範囲が独立している needs を後ろに回す（前段が落ちても needs は走らせたい）
+5. **x-post が最後**: lab-demo の intro / insights のスコア上位アイデア / needs の動いたニーズを「自分発信フック」枠の素材として使うため、ニュース系すべてが終わってから走らせる
 
 ## Step 1: /lab-demo を実行
 
@@ -37,7 +38,18 @@ description: 毎朝の日次実行をまとめて回す（lab-demo → insights 
 
 失敗した場合は、失敗内容を表示してから **Step 3 に進む**。
 
-## Step 3: /needs を実行
+## Step 3: /hp を実行
+
+`.claude/commands/hp.md` の手順を **そのまま全部** 実行する（前日の GA4 データ → Neon）。
+
+完了後、下記をこの会話コンテキストに保持する:
+- 対象日（前日 JST）
+- UU / PV
+- 使用テーブル（events_YYYYMMDD or events_intraday_YYYYMMDD）
+
+失敗した場合は、失敗内容を表示してから **Step 4 に進む**（止めない）。bq MCP が `Failed to connect` の場合は CLAUDE.md の「bq MCP の登録（重要）」を参照してフルパス再登録する。
+
+## Step 4: /needs を実行
 
 `.claude/commands/needs.md` の手順を **そのまま全部** 実行する（Reddit → YouTube）。
 
@@ -45,7 +57,7 @@ description: 毎朝の日次実行をまとめて回す（lab-demo → insights 
 - Reddit / YouTube それぞれの新規ニーズ数・証拠追加数
 - アクティブニーズ総数
 
-## Step 4: /x-post を実行
+## Step 5: /x-post を実行
 
 `.claude/commands/x-post.md` の手順を **そのまま全部** 実行する。
 
@@ -59,9 +71,9 @@ description: 毎朝の日次実行をまとめて回す（lab-demo → insights 
 
 失敗した場合は、失敗内容を表示してから **Step 5 のサマリー** に進む（止めない）。
 
-## Step 5: 朝のまとめサマリー
+## Step 6: 朝のまとめサマリー
 
-4 つすべての実行が終わったら、下記を 1 つのブロックで表示する:
+5 つすべての実行が終わったら、下記を 1 つのブロックで表示する:
 
 ```
 ## 朝の日次パイプライン 完了（YYYY-MM-DD）
@@ -78,6 +90,11 @@ description: 毎朝の日次実行をまとめて回す（lab-demo → insights 
 - 証拠追加: X 件
 - アクティブアイデア総数: X 件
 
+### hp
+- 対象日: YYYY-MM-DD（前日 JST）
+- UU: X / PV: X
+- 使用テーブル: events_YYYYMMDD or events_intraday_YYYYMMDD
+
 ### needs
 - Reddit  新規 X / 証拠 X
 - YouTube 新規 X / 証拠 X
@@ -85,7 +102,7 @@ description: 毎朝の日次実行をまとめて回す（lab-demo → insights 
 
 ### x-post
 - 出力先: .claude/outputs/posts/YYYY-MM-DD.md
-- 集めたネタ: 天気 ◯ / Trends X / 何の日 X / ニュース X / 経済 X / 日本独自 X / 自分発信 X / 業界誌 X
+- 集めたネタ: 天気 ◯ / Trends X / 何の日 X / ニュース X / 経済 X / 日本独自 X / マインドセット X / 自分発信 X / 業界誌 X
 
 ### 失敗・要確認
 - (なければ「なし」)

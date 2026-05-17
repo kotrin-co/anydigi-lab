@@ -257,6 +257,37 @@ async function main() {
 
 実行: `npx tsx scripts/lab-demo-YYYY-MM-DD.ts`
 
+### Step 7-2: ISR の即時 invalidate（必須）
+
+書き込み完了後、本番フロント（`/demo`）の ISR キャッシュを即座に無効化する。これを呼ばないと最大 1 時間、初回アクセスのユーザーが fallback トピック（`page.tsx` の `FALLBACK_TOPICS`）を踏み、Q3 で「このパターンのレポートはまだ準備中です」が出る。
+
+スクリプト末尾に下記を追加する:
+
+```typescript
+async function revalidateDemo() {
+  const url = process.env.LAB_REVALIDATE_URL ?? "https://lab.anydigi.co.jp/api/revalidate-demo";
+  const token = process.env.REVALIDATE_TOKEN;
+  if (!token) {
+    console.warn("⚠ REVALIDATE_TOKEN が未設定、revalidate をスキップ");
+    return;
+  }
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "x-revalidate-token": token },
+  });
+  if (!res.ok) {
+    console.warn(`⚠ revalidate failed: ${res.status} ${await res.text()}`);
+    return;
+  }
+  console.log(`✓ revalidated /demo`);
+}
+
+// main() の最後で
+await revalidateDemo();
+```
+
+`.env` と Vercel Project Settings の双方に `REVALIDATE_TOKEN` を同じ値で設定する必要がある。エンドポイント実装は `apps/web/src/app/api/revalidate-demo/route.ts`。
+
 ## Step 8: サマリー表示
 
 ```
@@ -289,7 +320,7 @@ mv scripts/lab-demo-YYYY-MM-DD.ts scripts/archives/YYYY-MM/
 
 ## 注意
 
-- `revalidate = 3600` のため、ページ側のキャッシュは最長 1 時間遅延する。深夜実行なら朝までに伝搬する
+- `revalidate = 3600` だが Step 7-2 で即時 invalidate するため、書き込み完了後の初回アクセスでも fallback を踏まない。**Step 7-2 を省略すると最大 1 時間 fallback が出る**ので必ず呼ぶ
 - 同日 2 回実行しても `ON CONFLICT` で安全に上書きされる（content は最新で塗り替わる）
 - 30 日以上前の question_sets / reports は将来 R2 アーカイブ対象（容量を気にし始めたら検討）
 - 失敗したトピックがあっても他のトピックは続行する。最後にどのトピックが失敗したかを表示
